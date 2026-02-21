@@ -93,12 +93,12 @@ export default function Dashboard() {
   const triggerPipeline = useCallback(async () => {
     setPipelineRunning(true);
     try {
-      await fetch(`${AGENT_API}/execute-full`, {
+      await fetch(`/procurement/buy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           quantity_quintals: 20,
-          order_id: `dal-demo-${Date.now()}`
+          max_price_per_quintal: 8500
         })
       });
     } catch (err) {
@@ -117,7 +117,10 @@ export default function Dashboard() {
     e.type === 'x402_payment' || e.details?.payment_proof
   );
   const a2aEvents = events.filter(e =>
-    e.type === 'a2a_notification' || e.type === 'agent_online'
+    e.type === 'a2a_notification' ||
+    e.type === 'a2a_message' ||
+    e.action === 'a2a_handoff' ||
+    e.type === 'agent_online'
   );
 
   return (

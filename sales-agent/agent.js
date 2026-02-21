@@ -46,7 +46,8 @@ app.get('/.well-known/agent.json', (req, res) => {
 });
 
 app.post('/a2a/tasks', async (req, res) => {
-  const { capability, params } = req.body;
+  const { capability, params, input } = req.body;
+  const normalized = params || input || {};
   const taskId = uuidv4();
 
   const task = {
@@ -61,19 +62,19 @@ app.post('/a2a/tasks', async (req, res) => {
   // Execute async
   switch (capability) {
     case 'find_buyers':
-      await findBuyers(taskId, params || {});
+      await findBuyers(taskId, normalized);
       break;
     case 'outreach':
-      await runOutreach(taskId, params || {});
+      await runOutreach(taskId, normalized);
       break;
     case 'confirm_sale':
-      await confirmSale(taskId, params || {});
+      await confirmSale(taskId, normalized);
       break;
     case 'full_sales_pipeline':
-      await fullSalesPipeline(taskId, params || {});
+      await fullSalesPipeline(taskId, normalized);
       break;
     case 'delivery_notification':
-      await handleDeliveryNotification(taskId, params || {});
+      await handleDeliveryNotification(taskId, normalized);
       break;
   }
 });
@@ -301,6 +302,21 @@ async function confirmSale(taskId, params) {
     );
 
     await publishEvent('sale_confirmed', sale);
+
+    await axios.post(`${MOCK_API}/api/events/publish`, {
+      type: 'a2a_message',
+      agent_id: AGENT_ID,
+      agent_name: AGENT_NAME,
+      action: 'report_sale_to_founder',
+      details: {
+        from_agent: AGENT_ID,
+        to_agent: 'founder-agent',
+        capability: 'sale_report',
+        sale_id: sale.sale_id,
+        total_revenue: sale.total_revenue,
+        order_id: order_id
+      }
+    }).catch(() => {});
 
     return { status: 'confirmed', sale };
 

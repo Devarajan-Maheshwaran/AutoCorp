@@ -403,7 +403,8 @@ async function notifyLogisticsAgent(orderId, quantity) {
   try {
     await axios.post('http://localhost:3002/a2a/tasks', {
       capability: 'full_pipeline',
-      params: {
+      from_agent: AGENT_ID,
+      input: {
         quantity_quintals: quantity,
         order_id: orderId,
         source_agent: AGENT_ID
@@ -419,6 +420,20 @@ async function notifyLogisticsAgent(orderId, quantity) {
       order_id: orderId,
       quantity_quintals: quantity
     });
+
+    await axios.post(`${MOCK_API}/api/events/publish`, {
+      type: 'a2a_message',
+      agent_id: AGENT_ID,
+      agent_name: AGENT_NAME,
+      action: 'handoff_to_logistics',
+      details: {
+        from_agent: AGENT_ID,
+        to_agent: 'logistics-agent-001',
+        capability: 'full_pipeline',
+        order_id: orderId,
+        quantity_quintals: quantity
+      }
+    }).catch(() => {});
   } catch (err) {
     console.log(`[${AGENT_NAME}] LogisticsAgent not available. Will queue for retry.`);
   }

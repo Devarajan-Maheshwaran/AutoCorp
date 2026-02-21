@@ -49,11 +49,22 @@ function pushReasoning(events, thought, action, observation) {
 }
 
 function inferBudget(objective) {
-  const lower = objective.toLowerCase();
-  const match = lower.match(/(\d+)\s*(k|000)?/);
-  if (!match) return 30000;
-  const n = Number(match[1]);
-  return match[2] === "k" ? n * 1000 : n;
+  const cleaned = objective.toLowerCase().replace(/[,₹\s]/g, "");
+  const kMatch = cleaned.match(/(\d+)k/);
+  if (kMatch) return Number(kMatch[1]) * 1000;
+
+  const numberMatches = cleaned.match(/\d{4,7}|\d{2,3}000/g);
+  if (numberMatches && numberMatches.length > 0) {
+    const values = numberMatches.map((item) => Number(item)).filter((value) => Number.isFinite(value));
+    if (values.length > 0) {
+      return Math.max(...values);
+    }
+  }
+
+  const basic = cleaned.match(/\d+/);
+  if (!basic) return 30000;
+  const n = Number(basic[0]);
+  return n < 1000 ? n * 1000 : n;
 }
 
 function buildCharter(objective) {

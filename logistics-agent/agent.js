@@ -68,9 +68,10 @@ app.get('/.well-known/agent.json', (req, res) => {
  * }
  */
 app.post('/a2a/tasks', async (req, res) => {
-  const { task_id, capability, from_agent, input } = req.body;
+  const { task_id, capability, from_agent, input, params } = req.body;
+  const normalizedInput = input || params || {};
 
-  if (!capability || !input) {
+  if (!capability || !normalizedInput) {
     return res.status(400).json({
       error: 'Missing capability or input in A2A task'
     });
@@ -87,7 +88,7 @@ app.post('/a2a/tasks', async (req, res) => {
   });
 
   // Process asynchronously
-  processTask(taskId, capability, from_agent, input).catch(err => {
+  processTask(taskId, capability, from_agent, normalizedInput).catch(err => {
     console.error(`[Agent] Task ${taskId} failed:`, err.message);
   });
 });
@@ -270,6 +271,16 @@ async function processTask(taskId, capability, fromAgent, input) {
         result = await tracker.getStatus(input.shipment_id);
         break;
 
+      case 'full_pipeline':
+        await executeFullPipeline(taskId, {
+          quantity_quintals: input.quantity_quintals,
+          order_id: input.order_id,
+          max_cost_per_quintal: input.max_cost_per_quintal,
+          max_delivery_hours: input.max_delivery_hours
+        });
+        result = { status: 'started_full_pipeline', order_id: input.order_id };
+        break;
+
       default:
         throw new Error(`Unknown capability: ${capability}`);
     }
@@ -360,6 +371,34 @@ async function bookFreight(freightId, quantityQuintals, orderId) {
             location: data.location,
             order_id: orderId,
             message: 'Goods delivered. Sales Agent can proceed with buyer handoff.'
+          }
+        }).catch(() => {});
+
+        await axios.post(`${MOCK_API}/api/events/publish`, {
+          type: 'a2a_message',
+          agent_id: AGENT_ID,
+          agent_name: AGENT_NAME,
+          action: 'notify_delivery',
+          details: {
+            from_agent: AGENT_ID,
+            to_agent: 'sales-agent-001',
+            capability: 'delivery_notification',
+            shipment_id: shipmentData.shipment_id,
+            order_id: orderId,
+            location: data.location,
+            message: 'Delivery confirmed, forwarding to Sales agent'
+          }
+        }).catch(() => {});
+
+        await axios.post('http://localhost:3004/a2a/tasks', {
+          capability: 'delivery_notification',
+          from_agent: AGENT_ID,
+          input: {
+            shipment_id: shipmentData.shipment_id,
+            quantity_quintals: quantityQuintals,
+            order_id: orderId,
+            location: data.location,
+            delivered_at: new Date().toISOString()
           }
         }).catch(() => {});
       }

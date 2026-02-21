@@ -45,8 +45,13 @@ export default function AgentNetwork({ a2aEvents, trackingEvents, agentStatus })
       // Check if procurement/sales agents have published events recently
       const allEvents = [...(a2aEvents || []), ...(trackingEvents || [])];
       allEvents.forEach(e => {
-        if (e.agent_id && statuses[e.agent_id] === 'unknown') {
-          statuses[e.agent_id] = 'online';
+        const from = e.details?.from_agent || e.agent_id;
+        const to = e.details?.to_agent;
+        if (from && statuses[from] === 'unknown') {
+          statuses[from] = 'online';
+        }
+        if (to && statuses[to] === 'unknown') {
+          statuses[to] = 'online';
         }
       });
       setAgentStatuses(statuses);
@@ -144,16 +149,23 @@ export default function AgentNetwork({ a2aEvents, trackingEvents, agentStatus })
         {a2aEvents.length === 0 && trackingEvents.length === 0 ? (
           <div className="text-[10px] text-gray-700">No inter-agent messages yet</div>
         ) : (
-          [...a2aEvents, ...trackingEvents].slice(0, 5).map((event, i) => (
+          [...a2aEvents, ...trackingEvents].slice(0, 5).map((event, i) => {
+            const fromAgent = event.details?.from_agent || event.agent_name || event.agent_id;
+            const toAgent = event.details?.to_agent;
+            const action = event.details?.capability || event.action || event.type;
+
+            return (
             <div key={i} className="text-[10px] text-gray-400 py-0.5 border-b border-gray-800/50">
-              <span className="text-cyan-500">{event.agent_name || event.agent_id}</span>
+              <span className="text-cyan-500">{fromAgent}</span>
               {' → '}
-              <span className="text-gray-500">{event.action}</span>
+              <span className="text-purple-400">{toAgent || 'event_bus'}</span>
+              {' '}
+              <span className="text-gray-500">{action}</span>
               {event.details?.location && (
                 <span className="text-green-400"> @ {event.details.location}</span>
               )}
             </div>
-          ))
+          )})
         )}
       </div>
     </div>

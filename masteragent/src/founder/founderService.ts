@@ -38,9 +38,27 @@ class FounderService {
   }
 
   private buildCharter(objective: string): BusinessCharter {
-    const lower = objective.toLowerCase();
-    const budgetMatch = lower.match(/(\d+)(k|000)?/);
-    const budgetInr = budgetMatch ? Number(budgetMatch[1]) * (budgetMatch[2] === "k" ? 1000 : 1) : 30000;
+    const cleaned = objective.toLowerCase().replace(/[₹,\s]/g, "");
+    const kMatch = cleaned.match(/(\d+)k/);
+
+    let budgetInr = 30000;
+    if (kMatch) {
+      budgetInr = Number(kMatch[1]) * 1000;
+    } else {
+      const largeMatches = cleaned.match(/\d{4,7}|\d{2,3}000/g);
+      if (largeMatches && largeMatches.length > 0) {
+        const numeric = largeMatches.map((item) => Number(item)).filter((value) => Number.isFinite(value));
+        if (numeric.length > 0) {
+          budgetInr = Math.max(...numeric);
+        }
+      } else {
+        const basic = cleaned.match(/\d+/);
+        if (basic) {
+          const n = Number(basic[0]);
+          budgetInr = n < 1000 ? n * 1000 : n;
+        }
+      }
+    }
 
     return {
       businessName: "AutoCorp — Dal Arbitrage: Jodhpur → Mumbai",
