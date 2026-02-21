@@ -15,9 +15,68 @@ const { LOGISTICS_SYSTEM_PROMPT, FEW_SHOT_EVALUATE, FEW_SHOT_BOOK, FEW_SHOT_PIPE
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free';
 
 let genAI = null;
 let model = null;
+
+function hasOpenRouter() {
+  return !!OPENROUTER_API_KEY;
+}
+
+function hasGemini() {
+  return !!GEMINI_API_KEY;
+}
+
+function getProviderLabel() {
+  if (hasOpenRouter()) return `openrouter:${OPENROUTER_MODEL}`;
+  if (hasGemini()) return `gemini:${MODEL_NAME}`;
+  return 'none';
+}
+
+function mapHistoryToOpenRouterMessages(history) {
+  const messages = [];
+  for (const item of history) {
+    const content = (item.parts || []).map((p) => p.text).join('\n');
+    const role = item.role === 'model' ? 'assistant' : 'user';
+    messages.push({ role, content });
+  }
+  return messages;
+}
+
+async function sendWithOpenRouter(systemPrompt, history, userPrompt) {
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...mapHistoryToOpenRouterMessages(history),
+    { role: 'user', content: userPrompt },
+  ];
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_MODEL,
+      messages,
+      reasoning: { enabled: true },
+      temperature: 0.5,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter request failed: ${response.status} ${await response.text()}`);
+  }
+
+  const data = await response.json();
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) {
+    throw new Error('OpenRouter returned empty content');
+  }
+  return text;
+}
 
 /**
  * Initialize the Gemini client (lazy — only when first called)
@@ -43,6 +102,21 @@ function getModel() {
     console.log(`[LLM] Initialized Gemini model: ${MODEL_NAME}`);
   }
   return model;
+}
+
+async function runLLMChat({ history, userPrompt }) {
+  if (hasOpenRouter()) {
+    return sendWithOpenRouter(LOGISTICS_SYSTEM_PROMPT, history, userPrompt);
+  }
+
+  if (!hasGemini()) {
+    throw new Error('No LLM API key configured. Set OPENROUTER_API_KEY or GEMINI_API_KEY.');
+  }
+
+  const m = getModel();
+  const chat = m.startChat({ history });
+  const result = await chat.sendMessage(userPrompt);
+  return result.response.text();
 }
 
 /**
@@ -130,8 +204,6 @@ function parseDecision(content) {
  * @returns {Object} { steps, decision }
  */
 async function evaluateWithLLM(context, reactEngine) {
-  const m = getModel();
-
   const userPrompt = `You have received a logistics task. Evaluate freight options for ${context.quantity_quintals} quintals of Tur Dal from Jodhpur to Mumbai.
 
 Available options from freight API:
@@ -149,18 +221,14 @@ OBSERVATION: <what you learned from the action>
 After analyzing all options, output your final decision as:
 DECISION: {"freight_id": "<id from options>", "provider": "<name>", "reason": "<1-2 sentence explanation>", "total_cost": <number>, "estimated_hours": <number>}`;
 
-  // Build chat with system prompt + few-shot examples
-  const chat = m.startChat({
-    history: [
-      { role: 'user', parts: [{ text: LOGISTICS_SYSTEM_PROMPT }] },
-      { role: 'model', parts: [{ text: 'Understood. I am the AutoCorp Logistics Agent. I will evaluate freight options using the ReAct framework, make data-driven decisions, and communicate transparently through the Glassbox dashboard. Ready for tasks.' }] },
-      ...FEW_SHOT_EVALUATE
-    ]
-  });
+  const history = [
+    { role: 'user', parts: [{ text: LOGISTICS_SYSTEM_PROMPT }] },
+    { role: 'model', parts: [{ text: 'Understood. I am the AutoCorp Logistics Agent. I will evaluate freight options using the ReAct framework, make data-driven decisions, and communicate transparently through the Glassbox dashboard. Ready for tasks.' }] },
+    ...FEW_SHOT_EVALUATE
+  ];
 
-  console.log('[LLM] Sending freight evaluation to Gemini...');
-  const result = await chat.sendMessage(userPrompt);
-  const responseText = result.response.text();
+  console.log(`[LLM] Sending freight evaluation via ${getProviderLabel()}...`);
+  const responseText = await runLLMChat({ history, userPrompt });
   console.log('[LLM] Response received. Parsing ReAct steps...');
 
   // Parse into structured steps
@@ -171,11 +239,11 @@ DECISION: {"freight_id": "<id from options>", "provider": "<name>", "reason": "<
     if (step.type === 'thought') {
       await reactEngine.think(step.content, { source: 'gemini-2.5-flash' });
     } else if (step.type === 'action') {
-      await reactEngine.act(step.content, 'llm_reasoning', { source: 'gemini-2.5-flash' });
+      await reactEngine.act(step.content, 'llm_reasoning', { source: getProviderLabel() });
     } else if (step.type === 'observation') {
-      await reactEngine.observe(step.content, { source: 'gemini-2.5-flash' });
+      await reactEngine.observe(step.content, { source: getProviderLabel() });
     } else if (step.type === 'decision') {
-      await reactEngine.think(`DECISION: ${step.content}`, { source: 'gemini-2.5-flash', is_decision: true });
+      await reactEngine.think(`DECISION: ${step.content}`, { source: getProviderLabel(), is_decision: true });
     }
   }
 
@@ -187,7 +255,7 @@ DECISION: {"freight_id": "<id from options>", "provider": "<name>", "reason": "<
     steps,
     decision,
     raw_response: responseText,
-    model: MODEL_NAME
+    model: getProviderLabel()
   };
 }
 
@@ -195,8 +263,6 @@ DECISION: {"freight_id": "<id from options>", "provider": "<name>", "reason": "<
  * Call Gemini for full pipeline reasoning
  */
 async function pipelineReasonWithLLM(context, reactEngine) {
-  const m = getModel();
-
   const userPrompt = `FULL LOGISTICS PIPELINE initiated.
 Order ID: ${context.order_id}
 Quantity: ${context.quantity_quintals} quintals of Tur Dal
@@ -208,17 +274,14 @@ ${context.options.map((o, i) => `${i + 1}. ${o.provider} (${o.type}): ₹${o.cos
 
 Walk me through your complete logistics plan. Think step by step using THOUGHT/ACTION/OBSERVATION markers. End with a DECISION containing the freight_id to book.`;
 
-  const chat = m.startChat({
-    history: [
-      { role: 'user', parts: [{ text: LOGISTICS_SYSTEM_PROMPT }] },
-      { role: 'model', parts: [{ text: 'Understood. I am the AutoCorp Logistics Agent. Ready for full pipeline operations.' }] },
-      ...FEW_SHOT_PIPELINE
-    ]
-  });
+  const history = [
+    { role: 'user', parts: [{ text: LOGISTICS_SYSTEM_PROMPT }] },
+    { role: 'model', parts: [{ text: 'Understood. I am the AutoCorp Logistics Agent. Ready for full pipeline operations.' }] },
+    ...FEW_SHOT_PIPELINE
+  ];
 
-  console.log('[LLM] Sending full pipeline reasoning to Gemini...');
-  const result = await chat.sendMessage(userPrompt);
-  const responseText = result.response.text();
+  console.log(`[LLM] Sending full pipeline reasoning via ${getProviderLabel()}...`);
+  const responseText = await runLLMChat({ history, userPrompt });
   console.log('[LLM] Pipeline response received.');
 
   const steps = parseReActSteps(responseText);
@@ -227,26 +290,24 @@ Walk me through your complete logistics plan. Think step by step using THOUGHT/A
     if (step.type === 'thought') {
       await reactEngine.think(step.content, { source: 'gemini-2.5-flash' });
     } else if (step.type === 'action') {
-      await reactEngine.act(step.content, 'llm_reasoning', { source: 'gemini-2.5-flash' });
+      await reactEngine.act(step.content, 'llm_reasoning', { source: getProviderLabel() });
     } else if (step.type === 'observation') {
-      await reactEngine.observe(step.content, { source: 'gemini-2.5-flash' });
+      await reactEngine.observe(step.content, { source: getProviderLabel() });
     } else if (step.type === 'decision') {
-      await reactEngine.think(`DECISION: ${step.content}`, { source: 'gemini-2.5-flash', is_decision: true });
+      await reactEngine.think(`DECISION: ${step.content}`, { source: getProviderLabel(), is_decision: true });
     }
   }
 
   const decisionStep = steps.find(s => s.type === 'decision');
   const decision = decisionStep ? parseDecision(decisionStep.content) : null;
 
-  return { steps, decision, raw_response: responseText, model: MODEL_NAME };
+  return { steps, decision, raw_response: responseText, model: getProviderLabel() };
 }
 
 /**
  * Call Gemini for booking assessment
  */
 async function assessBookingWithLLM(bookingData, reactEngine) {
-  const m = getModel();
-
   const userPrompt = `Booking confirmed. Details:
 
 Shipment ID: ${bookingData.shipment_id}
@@ -260,37 +321,42 @@ Checkpoints: ${bookingData.checkpoints?.map(c => c.location).join(' → ') || 'S
 
 What is your assessment of this booking? Use THOUGHT/ACTION/OBSERVATION format.`;
 
-  const chat = m.startChat({
-    history: [
-      { role: 'user', parts: [{ text: LOGISTICS_SYSTEM_PROMPT }] },
-      { role: 'model', parts: [{ text: 'Understood. Ready to assess booking.' }] },
-      ...FEW_SHOT_BOOK
-    ]
-  });
+  const history = [
+    { role: 'user', parts: [{ text: LOGISTICS_SYSTEM_PROMPT }] },
+    { role: 'model', parts: [{ text: 'Understood. Ready to assess booking.' }] },
+    ...FEW_SHOT_BOOK
+  ];
 
-  console.log('[LLM] Sending booking assessment to Gemini...');
-  const result = await chat.sendMessage(userPrompt);
-  const responseText = result.response.text();
+  console.log(`[LLM] Sending booking assessment via ${getProviderLabel()}...`);
+  const responseText = await runLLMChat({ history, userPrompt });
 
   const steps = parseReActSteps(responseText);
   for (const step of steps) {
     if (step.type === 'thought') {
       await reactEngine.think(step.content, { source: 'gemini-2.5-flash' });
     } else if (step.type === 'action') {
-      await reactEngine.act(step.content, 'llm_reasoning', { source: 'gemini-2.5-flash' });
+      await reactEngine.act(step.content, 'llm_reasoning', { source: getProviderLabel() });
     } else if (step.type === 'observation') {
-      await reactEngine.observe(step.content, { source: 'gemini-2.5-flash' });
+      await reactEngine.observe(step.content, { source: getProviderLabel() });
     }
   }
 
-  return { steps, raw_response: responseText, model: MODEL_NAME };
+  return { steps, raw_response: responseText, model: getProviderLabel() };
 }
 
 /**
  * Check if Gemini is configured and available
  */
 function isLLMAvailable() {
-  return !!GEMINI_API_KEY;
+  return hasOpenRouter() || hasGemini();
+}
+
+function getLLMInfo() {
+  return {
+    available: isLLMAvailable(),
+    provider: hasOpenRouter() ? 'openrouter' : hasGemini() ? 'gemini' : 'none',
+    model: hasOpenRouter() ? OPENROUTER_MODEL : hasGemini() ? MODEL_NAME : null,
+  };
 }
 
 module.exports = {
@@ -299,5 +365,6 @@ module.exports = {
   assessBookingWithLLM,
   parseReActSteps,
   parseDecision,
-  isLLMAvailable
+  isLLMAvailable,
+  getLLMInfo
 };

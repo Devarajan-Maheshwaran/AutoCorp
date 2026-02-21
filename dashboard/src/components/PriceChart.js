@@ -16,6 +16,7 @@ export default function PriceChart({ priceTicks }) {
   const latestTick = priceTicks[priceTicks.length - 1];
   const spread = latestTick?.spread || 0;
   const spreadPct = latestTick?.spread_percentage || '0';
+  const sourceLabel = latestTick?.source_label || 'Agmarknet Historical Replay';
 
   return (
     <div className="h-full flex flex-col">
@@ -23,7 +24,7 @@ export default function PriceChart({ priceTicks }) {
       <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-cyan-400">Live Mandi Prices</h2>
-          <p className="text-xs text-gray-500">Source: Agmarknet Historical Data (Replayed)</p>
+          <p className="text-xs text-gray-500">Source: {sourceLabel}</p>
         </div>
         <div className="flex gap-4 text-xs">
           <div className="text-right">

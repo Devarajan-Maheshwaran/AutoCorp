@@ -23,7 +23,7 @@ const { v4: uuidv4 } = require('uuid');
 const ReActEngine = require('./src/react-engine');
 const FreightEvaluator = require('./src/freight-evaluator');
 const ShipmentTracker = require('./src/shipment-tracker');
-const { pipelineReasonWithLLM, assessBookingWithLLM, isLLMAvailable } = require('./src/gemini-llm');
+const { pipelineReasonWithLLM, assessBookingWithLLM, isLLMAvailable, getLLMInfo } = require('./src/gemini-llm');
 
 const app = express();
 app.use(express.json());
@@ -210,6 +210,7 @@ app.post('/execute-full', async (req, res) => {
  * GET /status — Agent status
  */
 app.get('/status', (req, res) => {
+  const llmInfo = getLLMInfo();
   res.json({
     agent_id: AGENT_ID,
     agent_name: AGENT_NAME,
@@ -218,8 +219,9 @@ app.get('/status', (req, res) => {
     business_contract: BUSINESS_CONTRACT,
     active_tasks: activeTasks.size,
     reasoning_steps: react.stepCount,
-    llm_available: isLLMAvailable(),
-    llm_model: isLLMAvailable() ? (process.env.GEMINI_MODEL || 'gemini-2.0-flash') : null,
+    llm_available: llmInfo.available,
+    llm_provider: llmInfo.provider,
+    llm_model: llmInfo.model,
     uptime: process.uptime()
   });
 });

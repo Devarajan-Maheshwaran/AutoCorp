@@ -1,6 +1,13 @@
 'use client';
 
-export default function ControlBar({ agentStatus, onTriggerPipeline, pipelineRunning, latestPrice }) {
+export default function ControlBar({
+  agentStatus,
+  onTriggerPipeline,
+  pipelineRunning,
+  latestPrice,
+  businessIdea,
+  onBusinessIdeaChange,
+}) {
   const spread = latestPrice?.spread || 0;
   const isOpportunity = spread > 1500; // ₹1500+ spread = actionable
 
@@ -52,8 +59,15 @@ export default function ControlBar({ agentStatus, onTriggerPipeline, pipelineRun
 
       {/* Right: Actions */}
       <div className="flex items-center gap-3">
+        <input
+          type="text"
+          value={businessIdea}
+          onChange={(e) => onBusinessIdeaChange?.(e.target.value)}
+          placeholder="Enter business idea (e.g. ₹30K dal arbitrage 30 days)"
+          className="w-[340px] px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-gray-200 placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-cyan-500"
+        />
         <button
-          onClick={onTriggerPipeline}
+          onClick={() => onTriggerPipeline?.(businessIdea)}
           disabled={pipelineRunning}
           className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
             pipelineRunning

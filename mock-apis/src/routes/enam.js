@@ -11,10 +11,116 @@
  */
 
 const express = require('express');
+const https = require('https');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const priceEngine = require('../priceEngine');
 const { x402Required } = require('../middleware/x402');
+
+const DATA_GOV_API_KEY = process.env.DATA_GOV_API_KEY || '579b464db66ec23bdd000001303507a2147840fe5851d9fb52fc9158';
+const DATA_GOV_RESOURCE_ID = process.env.DATA_GOV_RESOURCE_ID || '9ef84268-d588-465a-a308-a864a43d0070';
+
+function normalizeNumber(value) {
+  const parsed = Number(String(value || '').replace(/,/g, '').trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function toTickFromRecords(jodhpurRecord, mumbaiRecord) {
+  const jodhpurPrice = normalizeNumber(jodhpurRecord?.modal_price);
+  const mumbaiPrice = normalizeNumber(mumbaiRecord?.modal_price);
+  if (!jodhpurPrice || !mumbaiPrice) return null;
+
+  const spread = mumbaiPrice - jodhpurPrice;
+  return {
+    timestamp: new Date().toISOString(),
+    simulated_date: jodhpurRecord?.arrival_date || mumbaiRecord?.arrival_date || new Date().toISOString().slice(0, 10),
+    day_number: 0,
+    source_type: 'live',
+    source_label: 'Agmarknet Live (data.gov.in)',
+    jodhpur: {
+      commodity: jodhpurRecord?.commodity || 'Tur/Arhar Dal',
+      market: jodhpurRecord?.market || 'Jodhpur',
+      state: jodhpurRecord?.state || 'Rajasthan',
+      price_per_quintal: jodhpurPrice,
+      day_min: normalizeNumber(jodhpurRecord?.min_price) || jodhpurPrice,
+      day_max: normalizeNumber(jodhpurRecord?.max_price) || jodhpurPrice,
+      day_modal: jodhpurPrice,
+      unit: 'INR/quintal',
+    },
+    mumbai: {
+      commodity: mumbaiRecord?.commodity || 'Tur/Arhar Dal',
+      market: mumbaiRecord?.market || 'Vashi (Mumbai)',
+      state: mumbaiRecord?.state || 'Maharashtra',
+      price_per_quintal: mumbaiPrice,
+      day_min: normalizeNumber(mumbaiRecord?.min_price) || mumbaiPrice,
+      day_max: normalizeNumber(mumbaiRecord?.max_price) || mumbaiPrice,
+      day_modal: mumbaiPrice,
+      unit: 'INR/quintal',
+    },
+    spread,
+    spread_percentage: ((spread / jodhpurPrice) * 100).toFixed(2),
+  };
+}
+
+async function fetchLiveMandiTick() {
+  if (!DATA_GOV_API_KEY) return null;
+
+  const base = `https://api.data.gov.in/resource/${DATA_GOV_RESOURCE_ID}`;
+  const common = `api-key=${encodeURIComponent(DATA_GOV_API_KEY)}&format=json&offset=0&limit=40`;
+
+  const jodhpurUrl = `${base}?${common}&filters[state]=Rajasthan`;
+  const mumbaiUrl = `${base}?${common}&filters[state]=Maharashtra`;
+
+  const httpsJson = (url) => new Promise((resolve, reject) => {
+    https
+      .get(url, (res) => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`HTTP ${res.statusCode}`));
+          return;
+        }
+
+        let body = '';
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(body));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      })
+      .on('error', reject);
+  });
+
+  try {
+    const [jodhpurJson, mumbaiJson] = await Promise.all([
+      httpsJson(jodhpurUrl),
+      httpsJson(mumbaiUrl),
+    ]);
+
+    const pickRecord = (records, marketMatchers) => {
+      const all = Array.isArray(records) ? records : [];
+      if (all.length === 0) return null;
+
+      const dalRows = all.filter((row) => /tur|arhar|dal/i.test(String(row?.commodity || '')));
+      const dalMarketMatch = dalRows.find((row) => marketMatchers.some((matcher) => matcher.test(String(row?.market || ''))));
+      if (dalMarketMatch) return dalMarketMatch;
+
+      const marketMatch = all.find((row) => marketMatchers.some((matcher) => matcher.test(String(row?.market || ''))));
+      if (marketMatch) return marketMatch;
+
+      return dalRows[0] || all[0];
+    };
+
+    const jodhpurRecord = pickRecord(jodhpurJson?.records, [/jodhpur/i]);
+    const mumbaiRecord = pickRecord(mumbaiJson?.records, [/vashi/i, /mumbai/i, /navi mumbai/i]);
+    return toTickFromRecords(jodhpurRecord, mumbaiRecord);
+  } catch {
+    return null;
+  }
+}
 
 // In-memory order book
 const orders = new Map();
@@ -25,17 +131,32 @@ const orders = new Map();
  * FREE endpoint — no X402 required (price data is public)
  */
 router.get('/prices/current', (req, res) => {
-  const current = priceEngine.getCurrentPrice();
-  if (!current.jodhpur) {
-    return res.status(503).json({
-      error: 'Price engine not yet started. Wait for first tick.',
-      engine_status: priceEngine.getStatus()
+  fetchLiveMandiTick().then((liveTick) => {
+    if (liveTick) {
+      return res.json({
+        status: 'ok',
+        source: 'eNAM (Agmarknet live via data.gov.in)',
+        data: liveTick,
+      });
+    }
+
+    const current = priceEngine.getCurrentPrice();
+    if (!current.jodhpur) {
+      return res.status(503).json({
+        error: 'Price engine not yet started. Wait for first tick.',
+        engine_status: priceEngine.getStatus(),
+      });
+    }
+
+    return res.json({
+      status: 'ok',
+      source: 'eNAM (Agmarknet historical replay fallback)',
+      data: {
+        ...current,
+        source_type: 'replay',
+        source_label: 'Agmarknet Historical Replay',
+      },
     });
-  }
-  res.json({
-    status: 'ok',
-    source: 'eNAM (Agmarknet historical replay)',
-    data: current
   });
 });
 
@@ -65,21 +186,37 @@ router.get('/prices/stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.flushHeaders();
 
   console.log('[eNAM SSE] Client connected for price stream');
 
-  const listener = (tick) => {
-    res.write(`data: ${JSON.stringify(tick)}\n\n`);
+  let interval = null;
+
+  const emitTick = async () => {
+    const liveTick = await fetchLiveMandiTick();
+    if (liveTick) {
+      res.write(`event: price_tick\ndata: ${JSON.stringify(liveTick)}\n\n`);
+      return;
+    }
+
+    const current = priceEngine.getCurrentPrice();
+    if (current?.jodhpur?.price_per_quintal && current?.mumbai?.price_per_quintal) {
+      res.write(`event: price_tick\ndata: ${JSON.stringify({
+        ...current,
+        source_type: 'replay',
+        source_label: 'Agmarknet Historical Replay',
+      })}\n\n`);
+    }
   };
 
-  priceEngine.onTick(listener);
+  emitTick();
+  interval = setInterval(emitTick, 10000);
 
   req.on('close', () => {
     console.log('[eNAM SSE] Client disconnected');
-    // Remove listener (simplified — in production use proper cleanup)
-    const idx = priceEngine.listeners.indexOf(listener);
-    if (idx > -1) priceEngine.listeners.splice(idx, 1);
+    if (interval) clearInterval(interval);
   });
 });
 

@@ -31,7 +31,7 @@ function publishEvent(event) {
 
   // Broadcast to all SSE clients
   sseClients.forEach(res => {
-    res.write(`data: ${JSON.stringify(enriched)}\n\n`);
+    res.write(`event: event\ndata: ${JSON.stringify(enriched)}\n\n`);
   });
 }
 
@@ -43,14 +43,17 @@ router.get('/stream', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.setHeader('Access-Control-Allow-Origin', '*');
+
+  res.flushHeaders();
 
   sseClients.push(res);
   console.log(`[Events] SSE client connected. Total: ${sseClients.length}`);
 
   // Send last 50 events as catch-up
   events.slice(-50).forEach(evt => {
-    res.write(`data: ${JSON.stringify(evt)}\n\n`);
+    res.write(`event: catch_up\ndata: ${JSON.stringify(evt)}\n\n`);
   });
 
   req.on('close', () => {

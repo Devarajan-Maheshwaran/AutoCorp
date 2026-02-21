@@ -125,12 +125,29 @@ app.post('/buy', async (req, res) => {
   const taskId = uuidv4();
 
   try {
+    await publishReasoning('thought', 'Received direct buy execution request.', {
+      task_id: taskId,
+      quantity_quintals: quantity_quintals || TARGET_QTY,
+      max_price_per_quintal: max_price_per_quintal || MAX_PRICE
+    });
+
     const result = await executePurchase(taskId, {
       quantity: quantity_quintals || TARGET_QTY,
       max_price: max_price_per_quintal || MAX_PRICE
     });
+
+    await publishReasoning('observation', 'Purchase request completed successfully.', {
+      task_id: taskId,
+      status: result?.status,
+      next_step: result?.next_step
+    });
+
     res.json(result);
   } catch (err) {
+    await publishReasoning('observation', 'Purchase request failed.', {
+      task_id: taskId,
+      error: err.response?.data || err.message
+    });
     res.status(500).json({ error: err.message });
   }
 });
@@ -253,6 +270,12 @@ async function executePurchase(taskId, params) {
   state.status = 'buying';
 
   console.log(`[${AGENT_NAME}] Executing buy: ${quantity}q at max ₹${max_price}/q`);
+
+  await publishReasoning('action', `Placing eNAM order for ${quantity} quintals with max buy ₹${max_price}/q.`, {
+    task_id: taskId,
+    quantity_quintals: quantity,
+    max_price_per_quintal: max_price
+  });
 
   await publishEvent('purchase_initiated', {
     task_id: taskId,
@@ -459,6 +482,24 @@ async function publishEvent(action, details) {
     await axios.post(`${MOCK_API}/api/events/publish`, event);
   } catch (err) {
     // Event bus may not be available
+  }
+}
+
+async function publishReasoning(stepType, content, data = {}) {
+  try {
+    await axios.post(`${MOCK_API}/api/events/publish`, {
+      type: 'agent_reasoning',
+      agent_id: AGENT_ID,
+      agent_name: AGENT_NAME,
+      action: stepType,
+      details: {
+        type: stepType,
+        content,
+        data,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch {
   }
 }
 
