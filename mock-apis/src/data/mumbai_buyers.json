@@ -1,0 +1,46 @@
+[
+  {
+    "id": "buyer_001",
+    "name": "Shree Ganesh Dal Mill",
+    "location": "Vashi APMC, Mumbai",
+    "phone": "+91-9876XXXXXX",
+    "typical_order_quintals": 20,
+    "max_price_per_quintal": 9800,
+    "reliability_score": 0.95,
+    "payment_terms": "immediate_upi",
+    "active": true
+  },
+  {
+    "id": "buyer_002",
+    "name": "Mumbai Pulse Traders",
+    "location": "Navi Mumbai",
+    "phone": "+91-9123XXXXXX",
+    "typical_order_quintals": 50,
+    "max_price_per_quintal": 9600,
+    "reliability_score": 0.88,
+    "payment_terms": "immediate_upi",
+    "active": true
+  },
+  {
+    "id": "buyer_003",
+    "name": "Annapurna Wholesale",
+    "location": "Crawford Market, Mumbai",
+    "phone": "+91-9345XXXXXX",
+    "typical_order_quintals": 15,
+    "max_price_per_quintal": 10000,
+    "reliability_score": 0.92,
+    "payment_terms": "24hr_credit",
+    "active": true
+  },
+  {
+    "id": "buyer_004",
+    "name": "Rajasthani Dal House",
+    "location": "Dadar, Mumbai",
+    "phone": "+91-9567XXXXXX",
+    "typical_order_quintals": 10,
+    "max_price_per_quintal": 9900,
+    "reliability_score": 0.97,
+    "payment_terms": "immediate_upi",
+    "active": true
+  }
+]

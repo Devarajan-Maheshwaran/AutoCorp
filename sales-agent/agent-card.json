@@ -1,0 +1,31 @@
+{
+  "agent_id": "sales-agent-001",
+  "name": "SalesAgent",
+  "description": "Autonomous sales agent that finds Mumbai wholesale buyers, negotiates prices, sends WhatsApp outreach, and confirms sales. Liquidates goods autonomously upon delivery.",
+  "version": "1.0.0",
+  "protocol": "a2a",
+  "capabilities": [
+    {
+      "name": "find_buyers",
+      "description": "Queries Mumbai wholesale buyer database, ranks by reliability and price offered."
+    },
+    {
+      "name": "outreach",
+      "description": "Sends automated WhatsApp/SMS outreach to top buyers with offer details."
+    },
+    {
+      "name": "confirm_sale",
+      "description": "Confirms sale with buyer, triggers X402 payment collection into escrow."
+    },
+    {
+      "name": "full_sales_pipeline",
+      "description": "End-to-end: find buyers → outreach → negotiate → confirm sale."
+    }
+  ],
+  "endpoint": "http://localhost:3004",
+  "auth": {
+    "type": "x402",
+    "wallet": "0xSalesAgent_Demo_001",
+    "business_contract": "0xAutoCorpBizDemo001"
+  }
+}
