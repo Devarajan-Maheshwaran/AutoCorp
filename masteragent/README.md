@@ -33,6 +33,16 @@ Escalation target env:
 - `INVESTOR_DID=did:autocorp:investor:demo01`
 - `INVESTOR_WALLET=0x...`
 
+Optional dynamic discovery env:
+
+- `AGENT_CARDS_JSON=[{"did":"did:autocorp:pricemon","wallet":"0x...","capabilities":["price_monitoring"]}]`
+
+Founder assignment logic:
+
+- Discovers candidates by capability from Agent Cards
+- Calls `AgentRegistry.getReputation(agentDID)` when configured
+- Selects highest-reputation candidate per required capability
+
 ## Quick Start
 
 1. Install dependencies:
@@ -53,7 +63,10 @@ Server starts at `http://localhost:8787`.
 ## Demo Endpoints
 
 - `POST /founder/start` — create charter + DAG + optional deploy call
+- `POST /founder/test-llm` — generate and validate plan without deployment side effects
 - `POST /founder/event` — feed lifecycle status (e.g., procurement failure)
+- `POST /a2a/agent-card` — register/update discoverable agent card
+- `GET /a2a/agent-cards` — list current discoverable agent cards
 - `POST /accountant/event` — ingest normalized on-chain-like event
 - `POST /demo/seed` — inject one complete simulated trade cycle for quick demo
 - `GET /state` — snapshot of founder + accountant state

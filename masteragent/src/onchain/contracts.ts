@@ -5,6 +5,10 @@ const FactoryAbi = [
   "function deployBusiness(tuple(string businessName,string commodity,string sourceMandi,string destinationMarket,uint256 budgetInr,uint256 deadlineDays,uint256 minMarginPct,uint256 thresholdBuyPricePerKgInr,uint256 maxPerPurchaseInr,uint256 maxHoldingHours,uint256 pollIntervalSec,(uint256 procurementFailLimit,string onFailAction) escalationPolicy) charter) returns (address)",
 ];
 
+const AgentRegistryAbi = [
+  "function getReputation(string DID) view returns (uint256)",
+];
+
 export type DeployResult = {
   businessAddress: string;
   txHash?: string;
@@ -35,6 +39,21 @@ export class OnchainAdapter {
       businessAddress,
       txHash: tx.hash,
     };
+  }
+
+  async getReputation(agentDid: string): Promise<number> {
+    const registry = process.env.AGENT_REGISTRY_ADDRESS;
+    if (!registry || registry === "0x0000000000000000000000000000000000000000") {
+      return 0;
+    }
+
+    try {
+      const contract = new ethers.Contract(registry, AgentRegistryAbi, this.provider);
+      const score = await contract.getReputation(agentDid);
+      return Number(score);
+    } catch {
+      return 0;
+    }
   }
 }
 

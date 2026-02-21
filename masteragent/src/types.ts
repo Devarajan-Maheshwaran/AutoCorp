@@ -55,6 +55,13 @@ export const A2AMessageSchema = z.object({
   ts: z.string(),
 });
 
+export const AgentCardSchema = z.object({
+  did: z.string(),
+  wallet: z.string(),
+  capabilities: z.array(z.string()).min(1),
+  endpoint: z.string().optional(),
+});
+
 export const LedgerEventSchema = z.object({
   ts: z.string(),
   type: z.enum(["BUY", "SELL", "TRANSPORT", "SPEND", "DEPLOY", "DISSOLVE"]),
@@ -83,5 +90,6 @@ export const AccountantInputEventSchema = z.object({
 export type FounderPlan = z.infer<typeof FounderPlanSchema>;
 export type BusinessCharter = z.infer<typeof BusinessCharterSchema>;
 export type A2AMessage = z.infer<typeof A2AMessageSchema>;
+export type AgentCard = z.infer<typeof AgentCardSchema>;
 export type LedgerEvent = z.infer<typeof LedgerEventSchema>;
 export type AccountantInputEvent = z.infer<typeof AccountantInputEventSchema>;

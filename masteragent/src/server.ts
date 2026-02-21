@@ -4,7 +4,7 @@ import { accountantService } from "./accountant/accountantService.js";
 import { seedDemoAccountantFlow } from "./demoSeed.js";
 import { eventBus, StreamName } from "./eventBus.js";
 import { founderService } from "./founder/founderService.js";
-import { AccountantInputEventSchema } from "./types.js";
+import { AccountantInputEventSchema, AgentCardSchema } from "./types.js";
 
 const app = express();
 app.use(express.json());
@@ -38,6 +38,36 @@ app.post("/founder/start", async (req, res) => {
 
   const state = await founderService.start(String(objective));
   res.json(state);
+});
+
+app.post("/founder/test-llm", async (req, res) => {
+  const objective =
+    req.body?.objective ??
+    "Deploy ₹30K dal arbitrage business Jodhpur to Mumbai with 15% minimum margin in 30 days.";
+
+  try {
+    const result = await founderService.generatePlanOnly(String(objective));
+    return res.json({ ok: true, ...result });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown planner error",
+    });
+  }
+});
+
+app.post("/a2a/agent-card", (req, res) => {
+  const parsed = AgentCardSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  const card = founderService.registerAgentCard(parsed.data);
+  return res.json({ ok: true, card });
+});
+
+app.get("/a2a/agent-cards", (_req, res) => {
+  return res.json({ cards: founderService.listAgentCards() });
 });
 
 app.post("/founder/event", (req, res) => {

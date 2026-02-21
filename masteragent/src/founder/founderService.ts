@@ -7,6 +7,7 @@ import {
   LedgerEventSchema,
 } from "../types.js";
 import { onchainAdapter } from "../onchain/contracts.js";
+import { AgentCard, agentDirectory } from "./agentDirectory.js";
 import { generateFounderPlanWithOpenRouter } from "./openrouterPlanner.js";
 import { makeTraceId, nowIso, withTxUrl } from "../utils.js";
 
@@ -95,25 +96,56 @@ class FounderService {
     ].map((item) => ({ ...item, status: "pending" as const }));
   }
 
-  private buildAssignments() {
-    return [
-      { capability: "business_orchestration", did: "did:autocorp:founder", wallet: "0xFounder" },
-      { capability: "price_monitoring", did: "did:autocorp:pricemon", wallet: "0xPrice" },
-      { capability: "procurement", did: "did:autocorp:proc", wallet: "0xProc" },
-      { capability: "logistics", did: "did:autocorp:logi", wallet: "0xLogi" },
-      { capability: "sales", did: "did:autocorp:sales", wallet: "0xSales" },
-      { capability: "accounting", did: "did:autocorp:acct", wallet: "0xAcct" },
-    ];
+  private async chooseBestAgent(capability: string): Promise<AgentCard | undefined> {
+    const candidates = agentDirectory.findByCapability(capability);
+    if (candidates.length === 0) return undefined;
+
+    const scored = await Promise.all(
+      candidates.map(async (candidate) => ({
+        candidate,
+        reputation: await onchainAdapter.getReputation(candidate.did),
+      }))
+    );
+
+    scored.sort((a, b) => b.reputation - a.reputation);
+    return scored[0]?.candidate;
   }
 
-  private buildRuleBasedPlan(objective: string): FounderPlan {
+  private async buildAssignments() {
+    const requiredCapabilities = [
+      "business_orchestration",
+      "price_monitoring",
+      "procurement",
+      "logistics",
+      "sales",
+      "accounting",
+    ];
+
+    const assignments = [] as Array<{ capability: string; did: string; wallet: string }>;
+
+    for (const capability of requiredCapabilities) {
+      const selected = await this.chooseBestAgent(capability);
+      if (!selected) {
+        continue;
+      }
+      assignments.push({
+        capability,
+        did: selected.did,
+        wallet: selected.wallet,
+      });
+    }
+
+    return assignments;
+  }
+
+  private async buildRuleBasedPlanAsync(objective: string): Promise<FounderPlan> {
     const charter = this.buildCharter(objective);
     const taskDag = this.buildTaskDag();
     return FounderPlanSchema.parse({
       objective,
       charter,
       taskDag,
-      agentAssignments: this.buildAssignments(),
+      agentAssignments: await this.buildAssignments(),
     });
   }
 
@@ -132,7 +164,7 @@ class FounderService {
           throw error;
         }
         return {
-          plan: this.buildRuleBasedPlan(objective),
+          plan: await this.buildRuleBasedPlanAsync(objective),
           mode: "RULE_BASED",
           fallbackReason: error instanceof Error ? error.message : "Unknown OpenRouter error",
         };
@@ -140,9 +172,26 @@ class FounderService {
     }
 
     return {
-      plan: this.buildRuleBasedPlan(objective),
+      plan: await this.buildRuleBasedPlanAsync(objective),
       mode: "RULE_BASED",
     };
+  }
+
+  async generatePlanOnly(objective: string): Promise<{ mode: string; plan: FounderPlan; fallbackReason?: string }> {
+    const planResult = await this.buildPlan(objective);
+    return {
+      mode: planResult.mode,
+      plan: planResult.plan,
+      fallbackReason: planResult.fallbackReason,
+    };
+  }
+
+  registerAgentCard(card: AgentCard): AgentCard {
+    return agentDirectory.register(card);
+  }
+
+  listAgentCards(): AgentCard[] {
+    return agentDirectory.list();
   }
 
   async start(objective: string): Promise<FounderState> {
