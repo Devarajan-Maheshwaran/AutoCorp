@@ -13,6 +13,26 @@ This prototype implements **Founder Agent + Accountant Agent** with:
 - No LLM/API key is required for orchestration to work end-to-end.
 - You can later layer LLM reasoning text, but demo-critical flow remains deterministic.
 
+## LLM Mode (OpenRouter)
+
+Set these in `.env`:
+
+- `ORCHESTRATION_MODE=OPENROUTER_WITH_FALLBACK` (recommended)
+- `OPENROUTER_API_KEY=...`
+- `OPENROUTER_MODEL=openai/gpt-oss-20b:free`
+- `OPENROUTER_REASONING_ENABLED=true`
+
+Modes:
+
+- `RULE_BASED`: deterministic only
+- `OPENROUTER_WITH_FALLBACK`: try OpenRouter; fallback to deterministic if request/schema fails
+- `OPENROUTER_ONLY`: fail request if OpenRouter plan generation fails
+
+Escalation target env:
+
+- `INVESTOR_DID=did:autocorp:investor:demo01`
+- `INVESTOR_WALLET=0x...`
+
 ## Quick Start
 
 1. Install dependencies:

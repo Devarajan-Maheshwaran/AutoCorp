@@ -7,10 +7,12 @@ import {
   LedgerEventSchema,
 } from "../types.js";
 import { onchainAdapter } from "../onchain/contracts.js";
+import { generateFounderPlanWithOpenRouter } from "./openrouterPlanner.js";
 import { makeTraceId, nowIso, withTxUrl } from "../utils.js";
 
 type FounderState = {
-  mode: "RULE_BASED";
+  mode: "RULE_BASED" | "OPENROUTER";
+  fallbackReason?: string;
   activePlan?: FounderPlan;
   businessAddress?: string;
   procurementFailCount: number;
@@ -104,25 +106,74 @@ class FounderService {
     ];
   }
 
-  async start(objective: string): Promise<FounderState> {
-    this.pushReasoning(
-      "Founder Agent",
-      "I need to convert the investor objective into an executable arbitrage charter.",
-      "Parse objective and apply deterministic splitter for hackathon reliability.",
-      "Scenario pinned to Dal Jodhpur→Mumbai with rule-based charter defaults."
-    );
-
+  private buildRuleBasedPlan(objective: string): FounderPlan {
     const charter = this.buildCharter(objective);
     const taskDag = this.buildTaskDag();
-
-    const planCandidate: FounderPlan = {
+    return FounderPlanSchema.parse({
       objective,
       charter,
       taskDag,
       agentAssignments: this.buildAssignments(),
-    };
+    });
+  }
 
-    const plan = FounderPlanSchema.parse(planCandidate);
+  private async buildPlan(objective: string): Promise<{ plan: FounderPlan; mode: "RULE_BASED" | "OPENROUTER"; fallbackReason?: string }> {
+    const configuredMode = (process.env.ORCHESTRATION_MODE ?? "RULE_BASED").toUpperCase();
+
+    if (configuredMode === "OPENROUTER_ONLY" || configuredMode === "OPENROUTER_WITH_FALLBACK") {
+      try {
+        const llmPlan = await generateFounderPlanWithOpenRouter(objective);
+        return {
+          plan: llmPlan,
+          mode: "OPENROUTER",
+        };
+      } catch (error) {
+        if (configuredMode === "OPENROUTER_ONLY") {
+          throw error;
+        }
+        return {
+          plan: this.buildRuleBasedPlan(objective),
+          mode: "RULE_BASED",
+          fallbackReason: error instanceof Error ? error.message : "Unknown OpenRouter error",
+        };
+      }
+    }
+
+    return {
+      plan: this.buildRuleBasedPlan(objective),
+      mode: "RULE_BASED",
+    };
+  }
+
+  async start(objective: string): Promise<FounderState> {
+    this.pushReasoning(
+      "Founder Agent",
+      "I need to convert the investor objective into an executable arbitrage charter.",
+      "Select orchestration mode and generate plan JSON with schema validation.",
+      "Attempting configured planner mode."
+    );
+
+    const planResult = await this.buildPlan(objective);
+    const plan = planResult.plan;
+    this.state.mode = planResult.mode;
+    this.state.fallbackReason = planResult.fallbackReason;
+
+    if (planResult.fallbackReason) {
+      this.pushReasoning(
+        "Founder Agent",
+        "LLM planner failed validation or request.",
+        "Fallback to deterministic planner.",
+        `Fallback reason: ${planResult.fallbackReason}`
+      );
+    } else {
+      this.pushReasoning(
+        "Founder Agent",
+        "Plan generation complete.",
+        `Mode selected: ${planResult.mode}.`,
+        "Plan validated against schema."
+      );
+    }
+
     this.state.activePlan = plan;
 
     this.pushReasoning(
@@ -188,12 +239,13 @@ class FounderService {
       const escalationMsg = A2AMessageSchema.parse({
         traceId: makeTraceId("escalate"),
         from: "Founder Agent",
-        to: "did:autocorp:investor",
+        to: process.env.INVESTOR_DID ?? "did:autocorp:investor",
         taskType: "escalation",
         payload: {
           reason,
           action: "pause_and_escalate_investor",
           failCount: this.state.procurementFailCount,
+          investorWallet: process.env.INVESTOR_WALLET,
         },
         ts: nowIso(),
       });
