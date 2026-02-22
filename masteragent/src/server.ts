@@ -1,10 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import { accountantService } from "./accountant/accountantService.js";
-import { seedDemoAccountantFlow } from "./demoSeed.js";
 import { eventBus, StreamName } from "./eventBus.js";
 import { founderService } from "./founder/founderService.js";
-import { AccountantInputEventSchema, AgentCardSchema } from "./types.js";
+import { AccountantInputEventSchema, SUPPORTED_CATEGORIES } from "./types.js";
 
 const app = express();
 app.use(express.json());
@@ -27,85 +26,81 @@ function sseRoute(stream: StreamName) {
   };
 }
 
+// ──────────── Health & Discovery ────────────
+
 app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "autocorp-member1-prototype" });
+  res.json({ ok: true, service: "autocorp-masteragent", version: "2.0.0" });
 });
 
-app.post("/founder/start", async (req, res) => {
-  const objective =
-    req.body?.objective ??
-    "Deploy ₹30K dal arbitrage business Jodhpur to Mumbai with 15% minimum margin in 30 days.";
-
-  const state = await founderService.start(String(objective));
-  res.json(state);
+app.get("/categories", (_req, res) => {
+  res.json({ categories: [...SUPPORTED_CATEGORIES] });
 });
 
-app.post("/founder/test-llm", async (req, res) => {
-  const objective =
-    req.body?.objective ??
-    "Deploy ₹30K dal arbitrage business Jodhpur to Mumbai with 15% minimum margin in 30 days.";
+// ──────────── Business Lifecycle ────────────
+
+app.post("/business/create", async (req, res) => {
+  const objective = req.body?.objective ?? "Run a crypto arbitrage business with $10K budget";
+  const category = req.body?.category ?? "1_crypto";
+
+  if (!SUPPORTED_CATEGORIES.includes(category)) {
+    return res.status(400).json({
+      error: `Invalid category. Supported: ${SUPPORTED_CATEGORIES.join(", ")}`,
+    });
+  }
 
   try {
-    const result = await founderService.generatePlanOnly(String(objective));
-    return res.json({ ok: true, ...result });
+    const result = await founderService.createBusiness(String(objective), category);
+    res.json(result);
   } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      error: error instanceof Error ? error.message : "Unknown planner error",
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });
 
-app.post("/a2a/agent-card", (req, res) => {
-  const parsed = AgentCardSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
-  }
-
-  const card = founderService.registerAgentCard(parsed.data);
-  return res.json({ ok: true, card });
+app.get("/business/:id/status", (req, res) => {
+  const result = founderService.getBusinessStatus(req.params.id);
+  res.json(result);
 });
 
-app.get("/a2a/agent-cards", (_req, res) => {
-  return res.json({ cards: founderService.listAgentCards() });
+app.post("/business/:id/dissolve", async (req, res) => {
+  const result = await founderService.dissolveBusiness(req.params.id);
+  res.json(result);
 });
 
-app.post("/founder/event", (req, res) => {
-  const type = req.body?.type;
-  if (type === "procurement_failed") {
-    const state = founderService.onProcurementFailure(
-      req.body?.reason ?? "[SIMULATED] procurement failure"
-    );
-    return res.json(state);
-  }
-
-  return res.status(400).json({
-    error: "Unsupported founder event",
-    supported: ["procurement_failed"],
-  });
+app.get("/businesses", (_req, res) => {
+  res.json({ businesses: founderService.listBusinesses() });
 });
+
+// ──────────── Accountant ────────────
 
 app.post("/accountant/event", (req, res) => {
   const parsed = AccountantInputEventSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-
   const snapshot = accountantService.ingest(parsed.data);
   return res.json(snapshot);
 });
 
 app.get("/state", (_req, res) => {
   res.json({
-    founder: founderService.getState(),
+    businesses: founderService.listBusinesses(),
     accountant: accountantService.getSnapshot(),
   });
 });
 
-app.post("/demo/seed", (_req, res) => {
-  seedDemoAccountantFlow();
-  res.json({ ok: true, snapshot: accountantService.getSnapshot() });
+// ──────────── Events (for Python agents to push to) ────────────
+
+app.post("/events", (req, res) => {
+  const event = req.body;
+  if (event.type) {
+    eventBus.publish("reasoning", event);
+  }
+  res.json({ ok: true });
 });
+
+// ──────────── SSE Streams ────────────
 
 app.get("/stream/reasoning", sseRoute("reasoning"));
 app.get("/stream/a2a", sseRoute("a2a"));
@@ -114,5 +109,9 @@ app.get("/stream/pnl", sseRoute("pnl"));
 
 const port = Number(process.env.PORT ?? 8787);
 app.listen(port, () => {
-  console.log(`[autocorp-prototype] listening on http://localhost:${port}`);
+  console.log(`[autocorp-masteragent] listening on http://localhost:${port}`);
+  console.log(`  Categories: ${SUPPORTED_CATEGORIES.join(", ")}`);
+  console.log(`  POST /business/create  — create a new business`);
+  console.log(`  GET  /categories       — list supported categories`);
 });
+

@@ -1,9 +1,10 @@
 /**
  * Price Replay Engine
  * 
- * Replays REAL historical Agmarknet price data at accelerated speed.
+ * Replays historical price data at accelerated speed.
  * In demo: 1 real day = N seconds of demo time (configurable).
- * This is NOT random data — it's actual Jodhpur and Mumbai mandi prices.
+ * NOTE: Legacy data files are retained for backward-compat; new Python agents
+ * have built-in category-specific mock data. This engine will be replaced.
  * 
  * Adds realistic micro-fluctuations within the day's min/max range
  * to simulate intraday price ticks.

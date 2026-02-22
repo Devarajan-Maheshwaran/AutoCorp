@@ -1,14 +1,15 @@
 /**
  * AutoCorp Mock API Server
  * 
- * Central API server simulating India's physical infrastructure:
- * - eNAM (mandi prices + buy orders) with REAL Agmarknet data
- * - Freight (Porter/Rivigo/BlackBuck) with checkpoint simulation
- * - Sales (Mumbai wholesalers + WhatsApp simulation)
+ * Central API server providing simulated market data:
+ * - Price feeds for various asset categories
+ * - Transport / delivery simulation
+ * - Buyer marketplace simulation
  * - Events (Glassbox SSE stream for dashboard)
  * 
  * All paid endpoints support X402 machine-to-machine payment protocol.
- * Price data is replayed from actual historical Agmarknet prices.
+ * NOTE: Legacy eNAM/freight routes are kept for backward-compat; new Python agents
+ * have built-in mock data. This server will be fully rewritten in a future sprint.
  */
 
 require('dotenv').config();
@@ -64,8 +65,8 @@ app.get('/api/health', (req, res) => {
     },
     x402: {
       protocol: 'X402 (HTTP 402 Machine-to-Machine Payments)',
-      network: 'polygon_amoy',
-      token: 'MATIC (testnet)'
+      network: 'ethereum_sepolia',
+      token: 'ETH (testnet)'
     }
   });
 });
@@ -74,7 +75,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api', (req, res) => {
   res.json({
     name: 'AutoCorp Mock API Server',
-    description: 'Simulates India physical infrastructure for autonomous dal arbitrage business',
+    description: 'AutoCorp mock data server — provides simulated price feeds, delivery, and marketplace APIs',
     routes: {
       'GET  /api/health': 'Health check + all endpoints',
       'GET  /api/enam/prices/current': 'Current live mandi prices (Jodhpur + Mumbai)',
@@ -114,9 +115,9 @@ app.listen(PORT, () => {
   console.log('║  Price SSE: /api/enam/prices/stream                 ║');
   console.log('║  Event SSE: /api/events/stream (Glassbox Dashboard) ║');
   console.log('╠══════════════════════════════════════════════════════╣');
-  console.log('║  Data: Real Agmarknet prices (Tur/Arhar Dal)        ║');
-  console.log('║  Markets: Jodhpur (Rajasthan) + Vashi (Mumbai)      ║');
-  console.log('║  Payments: X402 protocol on Polygon Amoy testnet    ║');
+  console.log('║  Data: Simulated price feeds (multi-category)       ║');
+  console.log('║  Markets: Crypto / Compute / SaaS categories       ║');
+  console.log('║  Payments: X402 protocol on Ethereum Sepolia        ║');
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log('');
 

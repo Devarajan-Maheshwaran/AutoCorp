@@ -1,89 +1,52 @@
-# AutoCorp Member-1 Prototype (24h Hackathon)
+# AutoCorp MasterAgent (v2 — Multi-Category Profit Engine)
 
-This prototype implements **Founder Agent + Accountant Agent** with:
-- strict JSON schemas
-- orchestration DAG generation
-- SSE Glassbox streams (`Thought -> Action -> Observation`)
-- deterministic real-time P&L engine
-- Polygon Amoy contract-call stubs with tx-link generation
+Orchestration server for the AutoCorp autonomous profit engine. Creates, monitors, and dissolves businesses across multiple asset categories.
 
-## Reliability Mode (Best for 24h Hackathon)
+## Supported Categories
 
-- Founder task splitting runs in `RULE_BASED` mode by default for maximum reliability.
-- No LLM/API key is required for orchestration to work end-to-end.
-- You can later layer LLM reasoning text, but demo-critical flow remains deterministic.
-
-## LLM Mode (OpenRouter)
-
-Set these in `.env`:
-
-- `ORCHESTRATION_MODE=OPENROUTER_WITH_FALLBACK` (recommended)
-- `OPENROUTER_API_KEY=...`
-- `OPENROUTER_MODEL=openai/gpt-oss-20b:free`
-- `OPENROUTER_REASONING_ENABLED=true`
-
-Modes:
-
-- `RULE_BASED`: deterministic only
-- `OPENROUTER_WITH_FALLBACK`: try OpenRouter; fallback to deterministic if request/schema fails
-- `OPENROUTER_ONLY`: fail request if OpenRouter plan generation fails
-
-Escalation target env:
-
-- `INVESTOR_DID=did:autocorp:investor:demo01`
-- `INVESTOR_WALLET=0x...`
-
-Optional dynamic discovery env:
-
-- `AGENT_CARDS_JSON=[{"did":"did:autocorp:pricemon","wallet":"0x...","capabilities":["price_monitoring"]}]`
-
-Founder assignment logic:
-
-- Discovers candidates by capability from Agent Cards
-- Calls `AgentRegistry.getReputation(agentDID)` when configured
-- Selects highest-reputation candidate per required capability
+| ID | Category | Assets |
+|----|----------|--------|
+| `1_crypto` | Crypto Arbitrage | Cross-exchange, funding rate, triangular |
+| `2_compute` | Compute/GPU Arbitrage | GPU spot pricing, API credits |
+| `5_saas` | SaaS Licence Arbitrage | Licence resale, domain flipping |
 
 ## Quick Start
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Create env:
-   ```bash
-   copy .env.example .env
-   ```
-3. Run dev server:
-   ```bash
-   npm run dev
-   ```
+```bash
+npm install
+copy .env.example .env   # fill in SEPOLIA_RPC_URL, GEMINI_API_KEY
+npm run dev
+```
 
 Server starts at `http://localhost:8787`.
 
-## Demo Endpoints
+## Endpoints
 
-- `POST /founder/start` — create charter + DAG + optional deploy call
-- `POST /founder/test-llm` — generate and validate plan without deployment side effects
-- `POST /founder/event` — feed lifecycle status (e.g., procurement failure)
-- `POST /a2a/agent-card` — register/update discoverable agent card
-- `GET /a2a/agent-cards` — list current discoverable agent cards
-- `POST /accountant/event` — ingest normalized on-chain-like event
-- `POST /demo/seed` — inject one complete simulated trade cycle for quick demo
-- `GET /state` — snapshot of founder + accountant state
-- `GET /stream/reasoning` — live reasoning stream for Panel 1
-- `GET /stream/pnl` — live P&L stream for Panel 5
-- `GET /stream/a2a` — A2A message stream for Panel 3
-- `GET /stream/ledger` — transaction feed stream for Panel 4
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/business/create` | Create business `{objective, category}` |
+| `GET` | `/business/:id/status` | Business status + charter |
+| `POST` | `/business/:id/dissolve` | Dissolve a business |
+| `GET` | `/businesses` | List all businesses |
+| `GET` | `/categories` | List supported categories |
+| `POST` | `/events` | Ingest agent events |
+| `POST` | `/accountant/event` | Ingest purchase/sale/transport events |
+| `GET` | `/state` | Full state snapshot |
+| `GET` | `/stream/reasoning` | SSE — live reasoning stream |
+| `GET` | `/stream/pnl` | SSE — P&L updates |
+| `GET` | `/stream/a2a` | SSE — A2A messages |
+| `GET` | `/stream/ledger` | SSE — transaction feed |
 
-## Hackathon Notes
+## Architecture
 
-- Keep payment/logistics as `[SIMULATED]` in frontend labels.
-- Replace ABI placeholders in `src/onchain/contracts.ts` once Member-3 shares deployed contracts.
-- For demo reliability, use local replay dataset for price/sale events and pass them through `/accountant/event`.
+- **Founder Service** — calls charter server (:8009), dispatches charters to Python agents
+- **Accountant Service** — tracks P&L by category, USD-denominated
+- **Onchain** — Ethereum Sepolia contract stubs for escrow/P&L
 
-## Documentation Index
+## Related Services
 
-- Architecture: `docs/ARCHITECTURE.md`
-- Master Agent output generation: `docs/MASTERAGENT_OUTPUT_SPEC.md`
-- Per-agent outputs (produced/expected): `docs/AGENT_OUTPUTS.md`
-- File-by-file code map: `docs/CODE_MAP.md`
+- Charter generator: `autocorp/core/charter_server.py` (port 8009)
+- Python agents: `autocorp/servers/` (ports 8002–8006)
+- Digital delivery: `logistics-agent/` (port 3002)
+- Mock data: `mock-apis/` (port 3001)
+- Dashboard: `dashboard/` (port 3000)

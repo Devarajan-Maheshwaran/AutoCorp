@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+// ──────────────────────────── Category-Agnostic Types ────────────────────────
+
+export const SUPPORTED_CATEGORIES = ["1_crypto", "2_compute", "5_saas"] as const;
+export type Category = (typeof SUPPORTED_CATEGORIES)[number];
+
 export const TaskSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -16,21 +21,22 @@ export const TaskSchema = z.object({
 });
 
 export const BusinessCharterSchema = z.object({
-  businessName: z.literal("AutoCorp — Dal Arbitrage: Jodhpur → Mumbai"),
-  commodity: z.literal("dal"),
-  sourceMandi: z.literal("Jodhpur"),
-  destinationMarket: z.literal("Mumbai"),
-  budgetInr: z.number().positive(),
+  businessName: z.string(),
+  category: z.enum(SUPPORTED_CATEGORIES),
+  asset: z.string().optional(),
+  budgetUsd: z.number().positive(),
   deadlineDays: z.number().int().positive(),
   minMarginPct: z.number().positive(),
-  thresholdBuyPricePerKgInr: z.number().positive(),
-  maxPerPurchaseInr: z.number().positive(),
-  maxHoldingHours: z.number().positive(),
-  pollIntervalSec: z.number().int().positive(),
-  escalationPolicy: z.object({
-    procurementFailLimit: z.number().int().positive(),
-    onFailAction: z.literal("pause_and_escalate_investor"),
-  }),
+  maxSingleTradePct: z.number().positive().default(20),
+  stopLossPct: z.number().positive().default(5),
+  pollIntervalSec: z.number().int().positive().default(30),
+  parameters: z.record(z.any()).default({}),
+  escalationPolicy: z
+    .object({
+      failLimit: z.number().int().positive().default(3),
+      onFailAction: z.string().default("pause_and_escalate"),
+    })
+    .default({}),
 });
 
 export const FounderPlanSchema = z.object({
@@ -40,8 +46,7 @@ export const FounderPlanSchema = z.object({
   agentAssignments: z.array(
     z.object({
       capability: z.string(),
-      did: z.string(),
-      wallet: z.string(),
+      endpoint: z.string().optional(),
     })
   ),
 });
@@ -56,16 +61,17 @@ export const A2AMessageSchema = z.object({
 });
 
 export const AgentCardSchema = z.object({
-  did: z.string(),
-  wallet: z.string(),
+  name: z.string(),
   capabilities: z.array(z.string()).min(1),
   endpoint: z.string().optional(),
+  port: z.number().optional(),
 });
 
 export const LedgerEventSchema = z.object({
   ts: z.string(),
-  type: z.enum(["BUY", "SELL", "TRANSPORT", "SPEND", "DEPLOY", "DISSOLVE"]),
-  amountInr: z.number().nonnegative(),
+  type: z.enum(["BUY", "SELL", "TRANSFER", "SPEND", "DEPLOY", "DISSOLVE"]),
+  amountUsd: z.number().nonnegative(),
+  category: z.enum(SUPPORTED_CATEGORIES).optional(),
   details: z.record(z.any()),
   txHash: z.string().optional(),
   txUrl: z.string().optional(),
@@ -73,8 +79,9 @@ export const LedgerEventSchema = z.object({
 
 export const AccountantInputEventSchema = z.object({
   type: z.enum(["deposit", "purchase", "transport", "sale", "fee", "dissolve"]),
-  amountInr: z.number().nonnegative(),
-  qtyKg: z.number().nonnegative().optional(),
+  amountUsd: z.number().nonnegative(),
+  quantity: z.number().nonnegative().optional(),
+  category: z.enum(SUPPORTED_CATEGORIES).optional(),
   agent: z.enum([
     "founder",
     "price_monitor",
@@ -93,3 +100,4 @@ export type A2AMessage = z.infer<typeof A2AMessageSchema>;
 export type AgentCard = z.infer<typeof AgentCardSchema>;
 export type LedgerEvent = z.infer<typeof LedgerEventSchema>;
 export type AccountantInputEvent = z.infer<typeof AccountantInputEventSchema>;
+

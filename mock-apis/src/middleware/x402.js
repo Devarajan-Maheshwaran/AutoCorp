@@ -34,10 +34,10 @@ function x402Required(priceWei, category) {
         protocol: 'X402',
         payment_details: {
           price_wei: priceWei,
-          price_display: `${priceWei / 1e18} MATIC (testnet)`,
+          price_display: `${priceWei / 1e18} ETH (testnet)`,
           pay_to: process.env.PLATFORM_WALLET || '0xAutoCorpPlatformWallet',
-          network: 'polygon_amoy',
-          token: 'MATIC',
+          network: 'ethereum_sepolia',
+          token: 'ETH',
           category: category,
           accepted_proof: 'transaction_hash OR signed_message',
           instruction: 'Include x-402-payment-proof and x-402-payer-address headers'

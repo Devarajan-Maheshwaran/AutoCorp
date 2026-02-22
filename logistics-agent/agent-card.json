@@ -1,53 +1,14 @@
-{
-  "agent_id": "logistics-agent-001",
+﻿{
   "name": "AutoCorp Logistics Agent",
-  "description": "Autonomous logistics optimization agent. Evaluates freight options, books optimal transport, tracks shipments in real-time, and confirms delivery. Operates within AutoCorp autonomous business swarm.",
-  "version": "1.0.0",
-  "protocol": "A2A/1.0",
+  "url": "http://localhost:3002",
+  "version": "2.0.0",
+  "description": "Digital delivery agent for AutoCorp",
   "capabilities": [
-    {
-      "name": "evaluate_freight",
-      "description": "Evaluates available freight options for a given route and quantity, scores them on cost/speed/reliability",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "origin": { "type": "string" },
-          "destination": { "type": "string" },
-          "quantity_quintals": { "type": "number" },
-          "max_cost_per_quintal": { "type": "number" },
-          "max_delivery_hours": { "type": "number" }
-        },
-        "required": ["origin", "destination", "quantity_quintals"]
-      }
-    },
-    {
-      "name": "book_transport",
-      "description": "Books the optimal freight option and initiates shipment tracking",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "freight_id": { "type": "string" },
-          "quantity_quintals": { "type": "number" },
-          "order_id": { "type": "string" }
-        },
-        "required": ["freight_id", "quantity_quintals", "order_id"]
-      }
-    },
-    {
-      "name": "track_shipment",
-      "description": "Returns current tracking status for a shipment",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "shipment_id": { "type": "string" }
-        },
-        "required": ["shipment_id"]
-      }
-    }
+    "trade_executed",
+    "instance_ready",
+    "licence_ready",
+    "delivery_confirmed"
   ],
-  "endpoint": "http://localhost:3002",
-  "authentication": {
-    "type": "x402",
-    "network": "polygon_amoy"
-  }
+  "supported_categories": ["1_crypto", "2_compute", "5_saas"],
+  "port": 3002
 }

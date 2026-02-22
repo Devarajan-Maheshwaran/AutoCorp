@@ -17,11 +17,10 @@ type PnLSnapshot = {
   roiPct: number;
   projected30DayPct: number;
   escrowRemaining: number;
-  agentPerformance: {
-    procurementAvgInrPerKg: number;
-    salesAvgMarginInrPerKg: number;
-    logisticsAvgCostInrPerKg: number;
-  };
+  byCategory: Record<
+    string,
+    { spent: number; revenue: number; pnl: number }
+  >;
 };
 
 class AccountantService {
@@ -30,32 +29,41 @@ class AccountantService {
   private transport = 0;
   private fees = 0;
   private revenue = 0;
+  private totalQuantity = 0;
 
-  private totalPurchasedKg = 0;
-  private totalSoldKg = 0;
-  private totalTransportedKg = 0;
+  private byCategory: Record<
+    string,
+    { spent: number; revenue: number }
+  > = {};
 
   ingest(eventCandidate: AccountantInputEvent): PnLSnapshot {
     const event = AccountantInputEventSchema.parse(eventCandidate);
+    const cat = event.category ?? "unknown";
+
+    if (!this.byCategory[cat]) {
+      this.byCategory[cat] = { spent: 0, revenue: 0 };
+    }
 
     switch (event.type) {
       case "deposit":
-        this.totalInvested += event.amountInr;
+        this.totalInvested += event.amountUsd;
         break;
       case "purchase":
-        this.procurement += event.amountInr;
-        this.totalPurchasedKg += event.qtyKg ?? 0;
+        this.procurement += event.amountUsd;
+        this.totalQuantity += event.quantity ?? 0;
+        this.byCategory[cat].spent += event.amountUsd;
         break;
       case "transport":
-        this.transport += event.amountInr;
-        this.totalTransportedKg += event.qtyKg ?? 0;
+        this.transport += event.amountUsd;
+        this.byCategory[cat].spent += event.amountUsd;
         break;
       case "sale":
-        this.revenue += event.amountInr;
-        this.totalSoldKg += event.qtyKg ?? 0;
+        this.revenue += event.amountUsd;
+        this.byCategory[cat].revenue += event.amountUsd;
         break;
       case "fee":
-        this.fees += event.amountInr;
+        this.fees += event.amountUsd;
+        this.byCategory[cat].spent += event.amountUsd;
         break;
       case "dissolve":
         break;
@@ -69,17 +77,18 @@ class AccountantService {
         event.type === "purchase"
           ? "BUY"
           : event.type === "sale"
-          ? "SELL"
-          : event.type === "transport"
-          ? "TRANSPORT"
-          : event.type === "dissolve"
-          ? "DISSOLVE"
-          : "SPEND",
-      amountInr: event.amountInr,
+            ? "SELL"
+            : event.type === "transport"
+              ? "TRANSFER"
+              : event.type === "dissolve"
+                ? "DISSOLVE"
+                : "SPEND",
+      amountUsd: event.amountUsd,
+      category: event.category,
       details: {
         sourceType: event.type,
         agent: event.agent,
-        qtyKg: event.qtyKg,
+        quantity: event.quantity,
         ...event.meta,
       },
       txHash: event.txHash,
@@ -100,21 +109,26 @@ class AccountantService {
   getSnapshot(): PnLSnapshot {
     const totalSpent = this.procurement + this.transport + this.fees;
     const grossProfit = this.revenue - totalSpent;
-    const roiPct = this.totalInvested > 0 ? (grossProfit / this.totalInvested) * 100 : 0;
+    const roiPct =
+      this.totalInvested > 0
+        ? (grossProfit / this.totalInvested) * 100
+        : 0;
 
     const elapsedDays = 12;
-    const projected30DayPct = elapsedDays > 0 ? (roiPct / elapsedDays) * 30 : 0;
+    const projected30DayPct =
+      elapsedDays > 0 ? (roiPct / elapsedDays) * 30 : 0;
 
-    const procurementAvgInrPerKg =
-      this.totalPurchasedKg > 0 ? this.procurement / this.totalPurchasedKg : 0;
-
-    const logisticsAvgCostInrPerKg =
-      this.totalTransportedKg > 0 ? this.transport / this.totalTransportedKg : 0;
-
-    const salesAvgMarginInrPerKg =
-      this.totalSoldKg > 0 && this.totalPurchasedKg > 0
-        ? this.revenue / this.totalSoldKg - this.procurement / this.totalPurchasedKg
-        : 0;
+    const byCategoryResult: Record<
+      string,
+      { spent: number; revenue: number; pnl: number }
+    > = {};
+    for (const [cat, data] of Object.entries(this.byCategory)) {
+      byCategoryResult[cat] = {
+        spent: round2(data.spent),
+        revenue: round2(data.revenue),
+        pnl: round2(data.revenue - data.spent),
+      };
+    }
 
     return {
       totalInvested: round2(this.totalInvested),
@@ -127,13 +141,10 @@ class AccountantService {
       roiPct: round2(roiPct),
       projected30DayPct: round2(projected30DayPct),
       escrowRemaining: round2(this.totalInvested - totalSpent),
-      agentPerformance: {
-        procurementAvgInrPerKg: round2(procurementAvgInrPerKg),
-        salesAvgMarginInrPerKg: round2(salesAvgMarginInrPerKg),
-        logisticsAvgCostInrPerKg: round2(logisticsAvgCostInrPerKg),
-      },
+      byCategory: byCategoryResult,
     };
   }
 }
 
 export const accountantService = new AccountantService();
+
