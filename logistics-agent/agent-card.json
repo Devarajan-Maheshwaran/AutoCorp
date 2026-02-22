@@ -1,0 +1,14 @@
+﻿{
+  "name": "AutoCorp Logistics Agent",
+  "url": "http://localhost:3002",
+  "version": "2.0.0",
+  "description": "Digital delivery agent for AutoCorp",
+  "capabilities": [
+    "trade_executed",
+    "instance_ready",
+    "licence_ready",
+    "delivery_confirmed"
+  ],
+  "supported_categories": ["1_crypto", "2_compute", "5_saas"],
+  "port": 3002
+}

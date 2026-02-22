@@ -1,0 +1,61 @@
+{
+  "contractName": "AutoCorpFactory",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [
+        { "name": "_investor", "type": "address" },
+        { "name": "_charterHash", "type": "bytes32" },
+        { "name": "_category", "type": "uint8" },
+        { "name": "_subStrategy", "type": "string" },
+        { "name": "_asset", "type": "string" },
+        { "name": "_budgetUsdc", "type": "uint256" },
+        { "name": "_minMarginBps", "type": "uint256" },
+        { "name": "_durationSecs", "type": "uint256" },
+        { "name": "_maxHoldingSecs", "type": "uint256" }
+      ],
+      "name": "deployBusiness",
+      "outputs": [{ "name": "", "type": "address" }],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getDeployedCount",
+      "outputs": [{ "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "name": "investor", "type": "address" }],
+      "name": "getInvestorBusinesses",
+      "outputs": [{ "name": "", "type": "address[]" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "name": "index", "type": "uint256" }],
+      "name": "getDeployedBusiness",
+      "outputs": [{ "name": "", "type": "address" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true, "name": "contractAddress", "type": "address" },
+        { "indexed": true, "name": "investor", "type": "address" },
+        { "indexed": false, "name": "category", "type": "uint8" },
+        { "indexed": false, "name": "asset", "type": "string" },
+        { "indexed": false, "name": "budgetUsdc", "type": "uint256" },
+        { "indexed": false, "name": "timestamp", "type": "uint256" }
+      ],
+      "name": "BusinessDeployed",
+      "type": "event"
+    }
+  ]
+}

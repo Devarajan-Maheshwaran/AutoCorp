@@ -1,0 +1,105 @@
+{
+  "contractName": "BusinessEntity",
+  "abi": [
+    {
+      "inputs": [
+        { "name": "_investor", "type": "address" },
+        { "name": "_charterHash", "type": "bytes32" },
+        { "name": "_category", "type": "uint8" },
+        { "name": "_subStrategy", "type": "string" },
+        { "name": "_asset", "type": "string" },
+        { "name": "_budgetUsdc", "type": "uint256" },
+        { "name": "_minMarginBps", "type": "uint256" },
+        { "name": "_durationSecs", "type": "uint256" },
+        { "name": "_maxHoldingSecs", "type": "uint256" }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [
+        { "name": "lotId", "type": "string" },
+        { "name": "costCents", "type": "uint256" },
+        { "name": "currency", "type": "string" }
+      ],
+      "name": "recordPurchase",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        { "name": "lotId", "type": "string" },
+        { "name": "revenueCents", "type": "uint256" },
+        { "name": "currency", "type": "string" }
+      ],
+      "name": "recordSale",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getEscrowBalance",
+      "outputs": [{ "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getPnL",
+      "outputs": [
+        { "name": "revenue", "type": "int256" },
+        { "name": "costs", "type": "int256" }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "dissolve",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getTradeCount",
+      "outputs": [{ "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": false, "name": "lotId", "type": "string" },
+        { "indexed": false, "name": "costCents", "type": "uint256" },
+        { "indexed": false, "name": "currency", "type": "string" },
+        { "indexed": false, "name": "timestamp", "type": "uint256" }
+      ],
+      "name": "PurchaseRecorded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": false, "name": "lotId", "type": "string" },
+        { "indexed": false, "name": "revenueCents", "type": "uint256" },
+        { "indexed": false, "name": "currency", "type": "string" },
+        { "indexed": false, "name": "timestamp", "type": "uint256" }
+      ],
+      "name": "SaleRecorded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": false, "name": "investor", "type": "address" },
+        { "indexed": false, "name": "finalPnL", "type": "int256" },
+        { "indexed": false, "name": "timestamp", "type": "uint256" }
+      ],
+      "name": "BusinessDissolved",
+      "type": "event"
+    }
+  ]
+}

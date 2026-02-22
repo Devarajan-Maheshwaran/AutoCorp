@@ -1,0 +1,63 @@
+[
+  {
+    "id": "freight_rivigo_001",
+    "provider": "Rivigo",
+    "type": "LCL",
+    "route": "Jodhpur → Mumbai (Vashi)",
+    "distance_km": 820,
+    "estimated_hours": 36,
+    "cost_per_quintal": 180,
+    "min_load_quintals": 5,
+    "max_load_quintals": 100,
+    "available": true,
+    "vehicle_type": "14ft Container",
+    "checkpoints": [
+      {"location": "Jodhpur", "type": "pickup", "eta_hours": 0},
+      {"location": "Pali", "type": "transit", "eta_hours": 3},
+      {"location": "Udaipur", "type": "transit", "eta_hours": 8},
+      {"location": "Ahmedabad", "type": "transit", "eta_hours": 16},
+      {"location": "Surat", "type": "transit", "eta_hours": 24},
+      {"location": "Mumbai (Vashi)", "type": "delivery", "eta_hours": 36}
+    ]
+  },
+  {
+    "id": "freight_blackbuck_002",
+    "provider": "BlackBuck",
+    "type": "FTL",
+    "route": "Jodhpur → Mumbai (Vashi)",
+    "distance_km": 820,
+    "estimated_hours": 28,
+    "cost_per_quintal": 220,
+    "min_load_quintals": 20,
+    "max_load_quintals": 200,
+    "available": true,
+    "vehicle_type": "Tata 407",
+    "checkpoints": [
+      {"location": "Jodhpur", "type": "pickup", "eta_hours": 0},
+      {"location": "Ajmer", "type": "transit", "eta_hours": 4},
+      {"location": "Ahmedabad", "type": "transit", "eta_hours": 12},
+      {"location": "Mumbai (Vashi)", "type": "delivery", "eta_hours": 28}
+    ]
+  },
+  {
+    "id": "freight_porter_003",
+    "provider": "Porter Intercity",
+    "type": "LCL",
+    "route": "Jodhpur → Mumbai (Vashi)",
+    "distance_km": 820,
+    "estimated_hours": 42,
+    "cost_per_quintal": 150,
+    "min_load_quintals": 2,
+    "max_load_quintals": 50,
+    "available": true,
+    "vehicle_type": "Shared Truck",
+    "checkpoints": [
+      {"location": "Jodhpur", "type": "pickup", "eta_hours": 0},
+      {"location": "Pali", "type": "transit", "eta_hours": 4},
+      {"location": "Ahmedabad", "type": "transit", "eta_hours": 18},
+      {"location": "Surat", "type": "transit", "eta_hours": 28},
+      {"location": "Nashik", "type": "transit", "eta_hours": 35},
+      {"location": "Mumbai (Vashi)", "type": "delivery", "eta_hours": 42}
+    ]
+  }
+]
