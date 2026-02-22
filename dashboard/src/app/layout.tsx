@@ -3,22 +3,23 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'AutoCorp — Autonomous Business Engine',
-  description: 'AI agents that run autonomous micro-enterprises on Ethereum Sepolia',
+  description: 'Deploy AI-powered autonomous businesses on Ethereum Sepolia. Real-time multi-agent orchestration with Gemini AI.',
 }
 
-export default function RootLayout({
-  children,
-}: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300..800&family=JetBrains+Mono:wght@400;500&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body className="min-h-screen bg-[#030712] antialiased">
+        {children}
+      </body>
     </html>
   )
 }

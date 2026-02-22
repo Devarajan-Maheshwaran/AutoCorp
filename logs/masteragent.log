@@ -1,0 +1,9 @@
+
+> autocorp-member1-prototype@0.1.0 dev
+> tsx watch src/server.ts
+
+[autocorp-masteragent] listening on http://localhost:8787
+  Categories: 1_crypto, 2_compute, 5_saas
+  POST /business/create  — create a new business
+  GET  /categories       — list supported categories
+^Cnpm error A complete log of this run can be found in: C:\Users\dhara\AppData\Local\npm-cache\_logs\2026-02-22T03_23_24_657Z-debug-0.log

@@ -1,8 +1,0 @@
-{
-  "/_global-error/page": "/_global-error",
-  "/_not-found/page": "/_not-found",
-  "/api/system/ensure-running/route": "/api/system/ensure-running",
-  "/dashboard/[businessId]/page": "/dashboard/[businessId]",
-  "/favicon.ico/route": "/favicon.ico",
-  "/page": "/"
-}
