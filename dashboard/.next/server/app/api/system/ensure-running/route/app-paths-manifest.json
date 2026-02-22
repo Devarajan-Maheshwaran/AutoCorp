@@ -1,0 +1,3 @@
+{
+  "/api/system/ensure-running/route": "app/api/system/ensure-running/route.js"
+}

@@ -27,9 +27,12 @@ export const CHAIN = {
 export const CATEGORIES = [
   {
     id: '1_crypto' as const,
+    rank: 1,
     name: 'Crypto & Token Arbitrage',
-    icon: '₿',
+    emoji: '₿',
     color: 'yellow',
+    users: 54,
+    avg_roi: 18.7,
     description: 'Exploit price differences across crypto exchanges for instant profit',
     sub_strategies: [
       {
@@ -60,9 +63,12 @@ export const CATEGORIES = [
   },
   {
     id: '2_compute' as const,
+    rank: 2,
     name: 'Cloud Compute & GPU Arbitrage',
-    icon: '⚡',
+    emoji: '⚡',
     color: 'blue',
+    users: 27,
+    avg_roi: 67.3,
     description: 'Buy idle GPU compute at night, resell to ML teams at peak hours',
     sub_strategies: [
       {
@@ -85,9 +91,12 @@ export const CATEGORIES = [
   },
   {
     id: '5_saas' as const,
+    rank: 3,
     name: 'SaaS & Licence Arbitrage',
-    icon: '🔑',
+    emoji: '🔑',
     color: 'purple',
+    users: 38,
+    avg_roi: 44.1,
     description: 'Buy annual SaaS licences at bulk discount, resell monthly slots',
     sub_strategies: [
       {

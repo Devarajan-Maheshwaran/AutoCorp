@@ -1,100 +1,68 @@
-"""
-Category 1 — Crypto arbitrage tools.
-Fetches prices from exchanges, calculates spreads.
-"""
+"""Category 1 — Crypto arbitrage tools. Fetches prices from Binance, CoinDCX via mock API."""
+import os, time, httpx
+from autocorp.core.config import DEMO_MODE, MOCK_URL
 
-from __future__ import annotations
+_B = (MOCK_URL + "/binance") if DEMO_MODE else "https://api.binance.com"
+_C = (MOCK_URL + "/coindcx") if DEMO_MODE else "https://api.coindcx.com"
+_W = (MOCK_URL + "/wazirx")  if DEMO_MODE else "https://api.wazirx.com"
 
-import asyncio
-import os
-import time
-from typing import Any
+async def get_binance_price(symbol: str) -> dict:
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.get(f"{_B}/api/v3/ticker/price", params={"symbol": symbol})
+        r.raise_for_status()
+        data = r.json()
+        return {"exchange": "binance", "symbol": symbol,
+                "price": float(data["price"]), "ts": time.time()}
 
-import httpx
+async def get_coindcx_price(symbol: str) -> dict:
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.get(f"{_C}/exchange/ticker")
+        r.raise_for_status()
+        tickers = r.json()
+        match = next((t for t in tickers if t["market"].upper() == symbol.upper()), None)
+        if not match: return {"exchange": "coindcx", "symbol": symbol, "price": 0, "ts": time.time()}
+        return {"exchange": "coindcx", "symbol": symbol,
+                "price": float(match["last_price"]), "ts": time.time()}
 
+async def fetch_crypto_prices(asset: str = "ETHUSDT") -> list[dict]:
+    """Fetch prices from Binance + CoinDCX."""
+    b, c = await get_binance_price(asset), await get_coindcx_price(asset)
+    return [b, c]
 
-MOCK_API = os.getenv("MOCK_API_URL", "http://localhost:3001")
+async def place_binance_buy(symbol: str, quantity: float) -> dict:
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(f"{_B}/api/v3/order", json={
+            "symbol": symbol, "side": "BUY", "quantity": quantity
+        })
+        r.raise_for_status()
+        return r.json()
 
+async def place_coindcx_sell(symbol: str, quantity: float) -> dict:
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(f"{_C}/exchange/v1/orders/create", json={
+            "market": symbol, "side": "sell", "quantity": quantity
+        })
+        r.raise_for_status()
+        return r.json()
 
-async def fetch_crypto_prices(asset: str = "ETH", **kwargs) -> list[dict]:
-    """Fetch current prices from multiple exchanges via mock API."""
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            resp = await client.get(f"{MOCK_API}/api/prices/crypto", params={"asset": asset})
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception:
-            pass
-    # DEMO_MODE gate: simulated fallback only for judge demos
-    if not os.getenv("DEMO_MODE", "false").lower() == "true":
-        raise NotImplementedError(
-            "Live exchange API not yet integrated. "
-            "Set DEMO_MODE=true only for judge demos."
-        )
-    # Simulated fallback data for demo
-    return [
-        {"exchange": "binance", "asset": asset, "bid": 2410.50, "ask": 2411.20, "ts": time.time()},
-        {"exchange": "coinbase", "asset": asset, "bid": 2413.00, "ask": 2413.80, "ts": time.time()},
-        {"exchange": "kraken", "asset": asset, "bid": 2409.80, "ask": 2410.60, "ts": time.time()},
-    ]
+async def fetch_funding_rates(symbol: str = "BTCUSDT") -> dict:
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.get(f"{_B}/fapi/v1/fundingRate", params={"symbol": symbol})
+        r.raise_for_status()
+        data = r.json()
+        if not data: return {"symbol": symbol, "rate": 0, "ts": time.time()}
+        return {"symbol": symbol, "rate": float(data[0]["fundingRate"]),
+                "next_funding": data[0]["fundingTime"], "ts": time.time()}
 
+def calculate_spread(prices: list[dict]) -> dict:
+    if len(prices) < 2: return {"spread_pct": 0, "buy_at": None, "sell_at": None}
+    cheapest = min(prices, key=lambda p: p["price"])
+    richest  = max(prices, key=lambda p: p["price"])
+    spread   = richest["price"] - cheapest["price"]
+    pct      = (spread / cheapest["price"]) * 100 if cheapest["price"] else 0
+    return {"buy_exchange": cheapest["exchange"], "buy_price": cheapest["price"],
+            "sell_exchange": richest["exchange"], "sell_price": richest["price"],
+            "spread_usd": round(spread, 4), "spread_pct": round(pct, 4)}
 
-async def fetch_funding_rates(asset: str = "ETH", **kwargs) -> list[dict]:
-    """Fetch funding rates for perpetual futures."""
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            resp = await client.get(f"{MOCK_API}/api/funding-rates", params={"asset": asset})
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception:
-            pass
-    return [
-        {"exchange": "binance", "asset": asset, "rate": 0.0003, "interval_h": 8},
-        {"exchange": "deribit", "asset": asset, "rate": 0.0005, "interval_h": 8},
-    ]
-
-
-def calculate_spread(prices: list[dict], **kwargs) -> dict:
-    """Find the best cross-exchange spread from a price list."""
-    if not prices or len(prices) < 2:
-        return {"spread_pct": 0, "buy_at": None, "sell_at": None}
-    cheapest = min(prices, key=lambda p: p.get("ask", float("inf")))
-    richest = max(prices, key=lambda p: p.get("bid", 0))
-    spread = richest["bid"] - cheapest["ask"]
-    spread_pct = (spread / cheapest["ask"]) * 100 if cheapest["ask"] else 0
-    return {
-        "buy_exchange": cheapest["exchange"],
-        "buy_price": cheapest["ask"],
-        "sell_exchange": richest["exchange"],
-        "sell_price": richest["bid"],
-        "spread_usd": round(spread, 4),
-        "spread_pct": round(spread_pct, 4),
-    }
-
-
-def calculate_triangular_opportunity(
-    pair_ab: dict, pair_bc: dict, pair_ca: dict, **kwargs
-) -> dict:
-    """Evaluate a triangular arbitrage path A→B→C→A."""
-    try:
-        rate_ab = pair_ab.get("rate", 1)
-        rate_bc = pair_bc.get("rate", 1)
-        rate_ca = pair_ca.get("rate", 1)
-        combined = rate_ab * rate_bc * rate_ca
-        profit_pct = (combined - 1) * 100
-        return {
-            "path": f"{pair_ab.get('from','A')}→{pair_ab.get('to','B')}→{pair_bc.get('to','C')}→{pair_ca.get('to','A')}",
-            "combined_rate": round(combined, 6),
-            "profit_pct": round(profit_pct, 4),
-            "viable": profit_pct > 0.05,
-        }
-    except Exception as e:
-        return {"error": str(e), "viable": False}
-
-
-CRYPTO_TOOLS: dict[str, Any] = {
-    "fetch_crypto_prices": fetch_crypto_prices,
-    "fetch_funding_rates": fetch_funding_rates,
-    "calculate_spread": calculate_spread,
-    "calculate_triangular_opportunity": calculate_triangular_opportunity,
-}
+CRYPTO_TOOLS = [get_binance_price, get_coindcx_price, fetch_crypto_prices,
+                place_binance_buy, place_coindcx_sell, fetch_funding_rates, calculate_spread]

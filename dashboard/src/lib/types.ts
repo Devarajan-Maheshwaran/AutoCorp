@@ -14,9 +14,12 @@ export interface SubStrategy {
 
 export interface Category {
   id: CategoryId
+  rank: number                // ranking position (1, 2, 3...)
   name: string
-  icon: string                // emoji or icon name
+  emoji: string               // emoji visual representation
   color: string               // tailwind color class
+  users: number               // active users count
+  avg_roi: number             // average ROI percentage
   description: string
   sub_strategies: SubStrategy[]
   totalBusinessesCreated?: number

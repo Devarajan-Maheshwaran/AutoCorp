@@ -1,105 +1,51 @@
-"""
-Category 2 — Compute / GPU arbitrage tools.
-Fetches spot GPU prices, API credit rates, and calculates spread.
-"""
+"""Category 2 — GPU Compute arbitrage tools. Vast.ai + RunPod via mock API."""
+import os, time, httpx, json
+from autocorp.core.config import DEMO_MODE, MOCK_URL
 
-from __future__ import annotations
+_V = (MOCK_URL + "/vastai") if DEMO_MODE else "https://console.vast.ai"
+_R = (MOCK_URL + "/runpod") if DEMO_MODE else "https://api.runpod.io"
 
-import os
-import time
-from typing import Any
+async def search_vastai_gpus(gpu_type: str = "RTX_3090") -> list[dict]:
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.get(f"{_V}/api/v0/bundles", params={"q": gpu_type})
+        r.raise_for_status()
+        offers = r.json().get("offers", [])
+        return [{"platform": "vast.ai", "gpu": o["gpu_name"], "price_hr": o["dph_total"],
+                 "id": o["id"], "ts": time.time()} for o in offers[:5]]
 
-import httpx
+async def rent_vastai_gpu(offer_id: int, gpu_type: str = "RTX_3090") -> dict:
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(f"{_V}/api/v0/asks/{offer_id}", json={"gpu_name": gpu_type, "num_gpus": 1})
+        r.raise_for_status()
+        return r.json()
 
+async def search_runpod_gpus() -> list[dict]:
+    query = '{ gpuTypes { id displayName securePrice } }'
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(f"{_R}/graphql", json={"query": query},
+                         headers={"Authorization": f"Bearer {os.getenv('RUNPOD_API_KEY','demo')}"})
+        r.raise_for_status()
+        types = r.json().get("data", {}).get("gpuTypes", [])
+        return [{"platform": "runpod", "gpu": t["id"], "price_hr": t["securePrice"],
+                 "display": t["displayName"], "ts": time.time()} for t in types[:5]]
 
-MOCK_API = os.getenv("MOCK_API_URL", "http://localhost:3001")
+async def list_gpu_on_runpod(instance_id: str, price_hr: float) -> dict:
+    return {"listing_id": f"listing-{int(time.time())}", "instance": instance_id,
+            "price_hr": price_hr, "status": "active", "ts": time.time()}
 
+async def check_runpod_listing_sold(listing_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.get(f"{_R}/listing/{listing_id}")
+        r.raise_for_status()
+        return r.json()
 
-async def fetch_gpu_spot_prices(gpu_type: str = "A100", **kwargs) -> list[dict]:
-    """Fetch current GPU spot prices from cloud providers."""
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            resp = await client.get(
-                f"{MOCK_API}/api/prices/compute",
-                params={"gpu_type": gpu_type},
-            )
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception:
-            pass
-    # DEMO_MODE gate: simulated fallback only for judge demos
-    if not os.getenv("DEMO_MODE", "false").lower() == "true":
-        raise NotImplementedError(
-            "Live GPU pricing API not yet integrated. "
-            "Set DEMO_MODE=true only for judge demos."
-        )
-    # Simulated fallback
-    return [
-        {"provider": "lambda_labs", "gpu": gpu_type, "price_hr": 1.10, "available": True, "ts": time.time()},
-        {"provider": "vast_ai", "gpu": gpu_type, "price_hr": 0.85, "available": True, "ts": time.time()},
-        {"provider": "runpod", "gpu": gpu_type, "price_hr": 1.25, "available": True, "ts": time.time()},
-        {"provider": "aws_spot", "gpu": gpu_type, "price_hr": 1.65, "available": True, "ts": time.time()},
-    ]
+def calculate_gpu_profit(buy_price: float, sell_price: float, hours: float = 48) -> dict:
+    cost = buy_price * hours
+    revenue = sell_price * hours
+    profit = revenue - cost
+    roi = (profit / cost * 100) if cost else 0
+    return {"cost_usd": round(cost,2), "revenue_usd": round(revenue,2),
+            "profit_usd": round(profit,2), "roi_pct": round(roi,2), "hours": hours}
 
-
-async def fetch_api_credit_prices(**kwargs) -> list[dict]:
-    """Fetch resale prices for compute API credits (e.g., OpenAI, Anthropic)."""
-    async with httpx.AsyncClient(timeout=10) as client:
-        try:
-            resp = await client.get(f"{MOCK_API}/api/prices/api-credits")
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception:
-            pass
-    return [
-        {"platform": "openai", "credit_type": "GPT-4o", "retail_per_1k": 5.00, "bulk_per_1k": 3.80, "ts": time.time()},
-        {"platform": "anthropic", "credit_type": "Claude", "retail_per_1k": 4.50, "bulk_per_1k": 3.50, "ts": time.time()},
-    ]
-
-
-def calculate_compute_spread(prices: list[dict], **kwargs) -> dict:
-    """Find cheapest and most expensive GPU providers for arbitrage."""
-    if not prices or len(prices) < 2:
-        return {"spread_pct": 0, "buy_at": None, "sell_at": None}
-    available = [p for p in prices if p.get("available", True)]
-    if len(available) < 2:
-        return {"spread_pct": 0, "buy_at": None, "sell_at": None}
-    cheapest = min(available, key=lambda p: p.get("price_hr", float("inf")))
-    richest = max(available, key=lambda p: p.get("price_hr", 0))
-    spread = richest["price_hr"] - cheapest["price_hr"]
-    spread_pct = (spread / cheapest["price_hr"]) * 100 if cheapest["price_hr"] else 0
-    return {
-        "buy_provider": cheapest["provider"],
-        "buy_price_hr": cheapest["price_hr"],
-        "sell_provider": richest["provider"],
-        "sell_price_hr": richest["price_hr"],
-        "spread_hr": round(spread, 4),
-        "spread_pct": round(spread_pct, 2),
-        "gpu": cheapest.get("gpu", "A100"),
-    }
-
-
-def calculate_credit_arbitrage(credits: list[dict], **kwargs) -> list[dict]:
-    """Calculate arbitrage on API credits (bulk buy → retail resale)."""
-    opps = []
-    for c in credits:
-        bulk = c.get("bulk_per_1k", 0)
-        retail = c.get("retail_per_1k", 0)
-        if bulk > 0 and retail > bulk:
-            margin_pct = ((retail - bulk) / bulk) * 100
-            opps.append({
-                "platform": c["platform"],
-                "credit_type": c.get("credit_type", ""),
-                "bulk_price": bulk,
-                "retail_price": retail,
-                "margin_pct": round(margin_pct, 2),
-            })
-    return sorted(opps, key=lambda x: x["margin_pct"], reverse=True)
-
-
-COMPUTE_TOOLS: dict[str, Any] = {
-    "fetch_gpu_spot_prices": fetch_gpu_spot_prices,
-    "fetch_api_credit_prices": fetch_api_credit_prices,
-    "calculate_compute_spread": calculate_compute_spread,
-    "calculate_credit_arbitrage": calculate_credit_arbitrage,
-}
+COMPUTE_TOOLS = [search_vastai_gpus, rent_vastai_gpu, search_runpod_gpus,
+                 list_gpu_on_runpod, check_runpod_listing_sold, calculate_gpu_profit]

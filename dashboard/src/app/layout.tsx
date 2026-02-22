@@ -1,27 +1,24 @@
 import type { Metadata } from 'next'
-import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter'
-})
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono'
-})
 
 export const metadata: Metadata = {
   title: 'AutoCorp — Autonomous Business Engine',
-  description: 'AI agents that create and run autonomous micro-enterprises on Ethereum Sepolia',
+  description: 'AI agents that run autonomous micro-enterprises on Ethereum Sepolia',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable} dark`}>
-      <body className="font-sans antialiased bg-[#050505]">
-        {children}
-      </body>
+    <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body>{children}</body>
     </html>
   )
 }

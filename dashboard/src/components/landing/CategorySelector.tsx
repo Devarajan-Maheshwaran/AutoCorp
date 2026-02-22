@@ -49,7 +49,7 @@ export function CategorySelector({
                 </div>
               )}
 
-              <div className="text-3xl mb-3">{cat.icon}</div>
+              <div className="text-3xl mb-3">{cat.emoji}</div>
               <div className="font-semibold text-white mb-1">{cat.name}</div>
               <div className="text-xs text-gray-400 mb-3">{cat.description}</div>
 
